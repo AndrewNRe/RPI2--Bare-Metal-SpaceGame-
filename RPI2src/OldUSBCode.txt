@@ -1,0 +1,951 @@
+//NOTE: As of 2/6/21, this code has comments in my early Japanese learning stages. I'm much better now after a year of daily language exchanges :)
+//I might come back and re-write this in English since I don't really expect someone from Japan to read this, unfortunately.
+//Or if they were going to read this, they would understand the English version probably better in most cases.
+//If you're seriously looking at this code and have questions on what I was doing, do contact me, and i'll do my best to answer what I remember about this.
+//I will say that I gave up on this due to it being extremely complex (as USB is just unfortunately complex) and swapped to using the GPIO controlled SNES controller.
+//Therefore, my information / knowledge on this isn't the absolute best. I remember looking at a particular RPI bare metal forum post to get all the knowledge to write
+//what I have written here. So, check there!
+//USBに電気をつく。
+//USB info: is correct vendor (don't know who, though), allows internal DMA transfer, HighSpeedPhysical transfer allowed is Utmi.
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_AHB)
+	ldr r1, [r0] //Get AHB "struct"
+	and r1, r1, #0xFFFFFFFE //Interrupt Enable aka bit 0 = false.
+	str r1, [r0] //Writeback
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_INTERRUPT_MASK) 
+	mov r1, #0
+	str r1,[r0] //clear all interrupt masks
+//CPUからGPUを終わりの電気の設定する。
+	templooop:
+	imm32 r1, (PERIPHERAL_BASE_ADDRESS + MAIL_BASE + MAIL_STATUS_1)
+	ldr r2, [r1]
+	ands r2, r2, #0x80000000
+	bne templooop
+	wait r0, 0x100000
+	imm32 r1, (PERIPHERAL_BASE_ADDRESS + MAIL_BASE + MAIL_WRITE)
+	adrl r0, USB_STRUCT
+	orr r0, r0, #0xC0000000 //ARM to GPU address.
+	and r0, r0, #0xFFFFFFF0 //Clear lower 4 bits.
+	orr r0, r0, #0x8 //orr in the mailbox channel tags into the lower 4 bits.
+	str r0,[r1] //Mail Boxに書く。
+	//READ
+	MB_A:
+		MB_B:
+		imm32 r0, (PERIPHERAL_BASE_ADDRESS + MAIL_BASE + MAIL_STATUS)
+		ldr r1,[r0]
+		ands r1, r1, #0x40000000
+		bne MB_B
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + MAIL_BASE + MAIL_READ)
+	ldr r1, [r0]
+	and r1, r1, #0xF
+	cmp r1, #0x8
+	bne MB_A
+	
+
+//HCDの始まり設定する。
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_CONTROL)
+	ldr r1,[r0] //USB Controlをloadする。
+	and r1, r1, #0xFFAFFFFF //Bit 20(UlpiDriveExternalVbus)と22(TsDlinePulseEnable)を0 setする。
+	str r1,[r0] //Write Back
+//1つのHCDResetする。
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_RESET)
+	HCDReset_MasterIdle_1:
+		ldr r1, [r0] //Load USB_CORE_RESET
+		ands r1, r1, #0x80000000
+		beq HCDReset_MasterIdle_1 //Is AhbMasterIdle bit on? そういえば、または、loopする。
+	ldr r1, [r0] //Load USB_CORE_RESET
+	orr r1, #0x1 //CoreSoft aka bit 1 = on.
+	str r1,[r0] //Write back the core reset.
+	HCDReset_CoreAndMasterIdle_1:
+		ldr r1,[r0]
+		ands r2, r1, #0x80000000 //AHBMasterIdleまたはbit 31をcheckする。
+		bne HCDReset_CoreAndMasterIdle_Success_1 //If bit is on, you're == true, aka success.
+		ands r2, r1, #0x1 //CoreSoft aka bit 0
+		beq HCDReset_CoreAndMasterIdle_Success_1 //If bit is off, you're == false, aka the soft reset is done.
+		b HCDReset_CoreAndMasterIdle_1
+	HCDReset_CoreAndMasterIdle_Success_1:
+//USB_CORE_CONTROLのPhysical Interfaceを設定する。
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_CONTROL)
+	ldr r1, [r0]
+	and r1, r1, #0xFFFFFFE7 //bit3またはphyinterface = 0, bit4を0 setする。
+	orr r1, r1, #0x10 //bit4またはmodeselect = 1　または UTMI.
+	str r1,[r0]
+//2つのHCDResetする。
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_RESET)
+	HCDReset_MasterIdle_2:
+		ldr r1, [r0] //Load USB_CORE_RESET
+		ands r1, r1, #0x80000000
+		beq HCDReset_MasterIdle_2 //Is AhbMasterIdle bit on? そういえば、または、loopする。
+	ldr r1, [r0] //Load USB_CORE_RESET
+	orr r1, #0x1 //CoreSoft aka bit 1 = on.
+	str r1,[r0] //Write back the core reset.
+	HCDReset_CoreAndMasterIdle_2:
+		ldr r1,[r0]
+		ands r2, r1, #0x80000000 //AHBMasterIdleまたはbit 31をcheckする。
+		bne HCDReset_CoreAndMasterIdle_Success_2 //If bit is on, you're == true, aka success.
+		ands r2, r1, #0x1 //CoreSoft aka bit 0
+		beq HCDReset_CoreAndMasterIdle_Success_2 //If bit is off, you're == false, aka the soft reset is done.
+		b HCDReset_CoreAndMasterIdle_2
+	HCDReset_CoreAndMasterIdle_Success_2:
+//High Speed Physical is Utmi, だから、ulpiの設定はfalseする。
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_CONTROL)
+	ldr r1,[r0] //load USB control
+	and r1, r1, #0xFFF5FFFF //bit17 または UlpiFsls = false, bit 19 または ulpi_clk_sus_m = false.
+	str r1,[r0] //write back.
+//AHBのREGにDMAの設定する。
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_AHB)
+	ldr r1, [r0] //Load AHB reg
+	and r1, r1, #0xFF7FFFFF //bit 23またはdmaremaindermode = 0 または Incremental (1 = single).
+	orr r1, #0x20 //bit 5 または dmaenable = true.
+	str r1,[r0] //write back.
+//HardwareのOperatingModeはHNP_SRP_CAPABLEだからcore設定する。
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_CONTROL)
+	ldr r1,[r0] //load USB control
+	orr r1, #0x300 //bit 8 または srp capable = true, bit 9 または hnp capable = true.
+	str r1,[r0]//write back
+//PowerまたはClock Haltsをreleaseする。
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_POWER_REG)
+	mov r1, #0
+	str r1, [r0]
+//ClockRateを設定する。
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_HOST_CONFIG)
+	ldr r1,[r0] //load Host Config
+	and r1, r1, #0xFFFFFFFC //bit 0と1またはclock rate = 0 または 30-60 mhz.
+	orr r1, #0x4 //bit 2 またはflslonly = true
+	str r1,[r0]//Write back.
+//fifoのsizeを設定する。
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_RECIEVESIZE)
+	mov r1, #20480
+	str r1, [r0]
+//non-periodic fifo depthとstart addressを設定する。
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_NONPERIODICFIFO)
+	imm32 r1, 0x50005000  //Upper 16 bits aka depth = 20480, lower 16 bits aka startaddress = 20480.
+	str r1, [r0]
+//periodic fifo depthとstart addressを設定する。
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_PERIODICINFO)
+	imm32 r1, 0x5000A000 //Upper 16 bits aka depht = 20480, lower 16 bits aka start address = 40960
+	str r1, [r0]
+//Enable OTG host
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_OTGCONTROL)
+	ldr r1, [r0]
+	orr r1, #0x400 //bit 10 または HostSetHnpEnable = 1 または host enable.
+	str r1, [r0]
+//Fifoのtransmitをflushする。
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_RESET)
+	ldr r1,[r0] //load Core Reset
+	mov r2, #0x420
+	str r1,[r0] //write back.
+	DWC_core_reset_loop_transmit:
+		ldr r1,[r0]
+		ands r1, r1, #0x20
+		bne DWC_core_reset_loop_transmit
+//Fifoのrecieveをflushする。
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_RESET)
+	ldr r1,[r0] //load Core Reset
+	orr r1, #0x10 //bit 4または recieve fifo flush
+	str r1,[r0]//write back
+	DWC_core_reset_loop_recieve:
+		ldr r1,[r0]
+		ands r1, r1, #0x10
+		bne DWC_core_reset_loop_recieve
+//SetupDmaDescriptor
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_CORE_HARDWARE)
+	ldr r1,[r0, #4]
+	and r1, r1, #0x0003C000
+	lsr r1, #14 //r1 = total channels.
+	cmp r1, #0
+	imm32 r2, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_HOST_CHANNEL)
+	HostChannelLoop_InitSetup:
+		ldr r3,[r2] //Jump 32 bytes for each Host channel struct, pull the first 32 bits that are the Host Channel Characteristics.
+		and r3, r3, #0x7FFFFFFF //bit 31 または、channel enable = false.
+		orr r3, #0x40000000 //bit 30 または、channel disable = true.
+		orr r3, #0x00008000 //bit 15 または、endpoint direction = 1 または、usb direction in.
+		str r3,[r2]//write back.
+		add r2, #32 //Channelの大きさが32。offsetする。
+		subs r1, r1, #1
+		bne HostChannelLoop_InitSetup
+	ldr r1,[r0, #4]
+	and r1, r1, #0x0003C000
+	lsr r1, #14 //r1 = total channels.
+	imm32 r2, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_HOST_CHANNEL)
+	HostChannelLoop_FinalSetup:
+		ldr r3,[r2] //Jump 32 bytes for each Host channel struct, pull the first 32 bits that are the Host Channel Characteristics.
+		orr r3, #0xC0000000 //bit 31 または、channel enable = true, bit 30 または、channel disable = true.
+		orr r3, #0x00008000 //bit 15 または、endpoint direction = 1 または、usb direction in.
+		str r3,[r2] //write back.
+		HostChannel_channelenable:
+			ldr r3,[r2]
+			ands r3, r3, #0x80000000
+			bne HostChannel_channelenable
+		add r2, #32 //Channelの大きさが32。offsetする。
+		subs r1, r1, #1
+		bne HostChannelLoop_FinalSetup
+//Turn Power ON
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_HOST_PORT)
+	ldr r1, [r0] //USB_HOST_PORTをloadする。
+	and r1, r1, #0xFFFFFFD1 //Bitmask cleave, このregisterは変だから役立つbitcleaveすればいい。
+	orr r1, #0x00001000 //bit 12 または、power = on.
+	str r0,[r1]
+//Reset Physical Host aka Final Setup.
+	imm32 r0, (PERIPHERAL_BASE_ADDRESS + USB_BASE + USB_HOST_PORT)
+	ldr r1, [r0]
+	and r1, r1, #0xFFFFFFD1 //Bitmask cleave.
+	orr r1, #0x00000100 //bit 8 または、reset = on.
+	str r1, [r0]
+	wait r1, CachedWaitAmount
+	ldr r1, [r0]
+	and r1, r1, #0xFFFFFEFF //bit 8 または、reset = off.
+	and r1, r1, #0xFFFFFFD1 //Bitmask cleave
+	str r1,[r0]
+
+//これから、USBのものんだ。
+
+
+
+
+
+
+-----------
+
+
+
+.balign 16
+USB_STRUCT:
+.word USB_STRUCT_END - USB_STRUCT
+.word 0x00000000 //FB_STRUCT縺ｮ險ｭ螳壹・繧医≧縺縺九ｉ2縺､縺ｮ32bits縺悟酔縺倥□縲・.word Set_Power_State //Identifier Tag 
+.word 8 //ValueBuffer
+.word 8 //Request縺ｨResponse縺ｮcodes縲・.word 0x3 //髮ｻ豌励ｒ縺､縺九○繧区ｩ溷勣縺袈SB縺
+.word 0x1 //bit 0 = 髮ｻ豌励ｒ縺､縺獣it縲・ = off, 1 = on縲Ｃit 1 = 蠕・■縺ｮbit縲・ = 蠕・◆縺帙↑縺・・ = 蠕・◆縺帙ｋ縲・
+.word 0 //End
+USB_STRUCT_END:
+
+
+-----
+
+
+
+.equ MaxNumberOfDevices, 4
+
+
+ROOTHUB_usb_device_descriptor: //https://www.keil.com/pack/doc/mw/USB/html/_u_s_b__device__descriptor.html
+.byte (ROOTHUB_usb_device_descriptor_END - ROOTHUB_usb_device_descriptor) //Size of descriptor in bytes.
+.byte 0x1 //Descriptor Type
+.hword 0x0200 //Version 2.0 of USB 
+.byte 0x9 //Class code 
+.byte 0x0 //Subclass code
+.byte 0x0 //Device Protocol
+.byte 64 //Max Packet Size
+.hword 0 //Vendor ID
+.hword 0 //Product ID
+.hword 0x0100 //BCD device
+.byte 0 //Manufactor String Index
+.byte 0 //Product Description String Index
+.byte 0 //Device's Serial Number String Descriptor Index
+.byte 1 //Number of Possible Configurations.
+ROOTHUB_usb_device_descriptor_END:
+
+.balign 4
+REQUEST_usb_packet: //This packet's setup is currently for the first 
+.byte 0x80 //Type
+.byte 6 //USBDeviceRequest縺ｮRequest Separate USB and HID request, dependant on the usage.
+.hword 0x0100 //Value 
+.hword 0x0000 //Index
+.hword 0x0008 //Length
+
+.balign 16
+USBDevice_0:
+USB_Parent_0:
+.byte 0x00 //number
+.byte 0x00 //portnumber
+.hword 0x0000 //padding
+USB_Pipe_0:
+.word 0x00000000 //bits 0-1 = max packet size, 2-3 = speed of device, 4-7 = endpoint addr, 8-15 = Unique device number, 16-17=_reserved,18-24=lowspeednodeport,
+//25-31=lowspeednodepoint , for both low speeds, if in low speed mode, they're used.
+USB_Pipe_Control_0:
+.word 0x00000000 //0-13=reserved, 14-15= packet type, 16-23=channel to use, 24=direction 1 = in | 0 = out,25-31=reserved
+USB_ConfigControl_0:
+.word 0x00000000 //0-7=current set config index, 8-15=current config string index, 16-23=device enum status, 24-31=reserved.
+.balign 4
+USB_MaxInterface_0: .word 0x00000008 //Probably don't need this.
+.balign 4
+USB_Interface_Descriptor_0_0:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_0_1:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_0_2:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_0_3:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_0_4:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_0_5:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_0_6:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_0_7:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+.balign 4
+USB_Endpoint_Descriptor_0_0:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //EndpointAddress 0-3=number,4-6=reserved,7=direction(0=out,1=in)
+.byte 0x00 //EndpointTransferType
+.hword 0x0000 //MaxPacketsize
+.byte 0x00 //PollingInterval in frames
+USB_Endpoint_Descriptor_0_1:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_0_2:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_0_3:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_0_4:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_0_5:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_0_6:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_0_7:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+.balign 4
+USB_Device_Descriptor_0:
+.byte 0x00 //Descriptor Length
+.byte 0x00 //Descriptor Type
+.hword 0x0000 //in bcd 0x210 = USB 2.10
+.byte 0x00 //Device Class
+.byte 0x00 //Subclass code (assigned by the USB-IF)
+.byte 0x00 //Protocol code (assigned by the USB-IF)
+.byte 0x00 //Maximum packet size for endpoint 0
+.hword 0x0000 //Vendor ID
+.hword 0x0000 //Product ID
+.hword 0x0000 //device version number (BCD)
+.byte 0x00 //String index to describe manufacturer
+.byte 0x00 //String index to describe product
+.byte 0x00 //string index with the device's serial number
+.byte 0x00 //number of possible configurations.
+.balign 4
+USB_PayLoadType_0: .word 0x00 //payload type that's being carried.
+USB_PayLoadPointer_0:
+.word 0x00000000 //non null = device is a HubDevice.
+.word 0x00000000 //non null = device is an HidDevice.
+.word 0x00000000 //non null = device is a MassStorageDevice.
+
+USBDevice_1:
+USB_Parent_1:
+.byte 0x00 //number
+.byte 0x00 //portnumber
+.hword 0x0000 //padding
+USB_Pipe_1:
+.word 0x00000000 //bits 0-1 = max packet size, 2-3 = speed of device, 4-7 = endpoint addr, 8-15 = Unique device number, 16-17=_reserved,18-24=lowspeednodeport,
+//25-31=lowspeednodepoint , for both low speeds, if in low speed mode, they're used.
+USB_Pipe_Control_1:
+.word 0x00000000 //0-13=reserved, 14-15= packet type, 16-23=channel to use, 24=direction 1 = in | 0 = out,25-31=reserved
+USB_ConfigControl_1:
+.word 0x00000000 //0-7=current set config index, 8-15=current config string index, 16-23=device enum status, 24-31=reserved.
+.balign 4
+USB_MaxInterface_1: .word 0x00000008 //Probably don't need this.
+.balign 4
+USB_Interface_Descriptor_1_0:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_1_1:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_1_2:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_1_3:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_1_4:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_1_5:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_1_6:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_1_7:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+.balign 4
+USB_Endpoint_Descriptor_1_0:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //EndpointAddress 0-3=number,4-6=reserved,7=direction(0=out,1=in)
+.byte 0x00 //EndpointTransferType
+.hword 0x0000 //MaxPacketsize
+.byte 0x00 //PollingInterval in frames
+USB_Endpoint_Descriptor_1_1:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_1_2:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_1_3:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_1_4:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_1_5:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_1_6:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_1_7:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+.balign 4
+USB_Device_Descriptor_1:
+.byte 0x00 //Descriptor Length
+.byte 0x00 //Descriptor Type
+.hword 0x0000 //in bcd 0x210 = USB 2.10
+.byte 0x00 //Device Class
+.byte 0x00 //Subclass code (assigned by the USB-IF)
+.byte 0x00 //Protocol code (assigned by the USB-IF)
+.byte 0x00 //Maximum packet size for endpoint 0
+.hword 0x0000 //Vendor ID
+.hword 0x0000 //Product ID
+.hword 0x0000 //device version number (BCD)
+.byte 0x00 //String index to describe manufacturer
+.byte 0x00 //String index to describe product
+.byte 0x00 //string index with the device's serial number
+.byte 0x00 //number of possible configurations.
+USB_PayLoadType_1: .byte 0x00 //payload type that's being carried.
+USB_PayLoadPointer_1:
+.word 0x00000000 //non null = device is a HubDevice.
+.word 0x00000000 //non null = device is an HidDevice.
+.word 0x00000000 //non null = device is a MassStorageDevice.
+
+USBDevice_2:
+USB_Parent_2:
+.byte 0x00 //number
+.byte 0x00 //portnumber
+.hword 0x0000 //padding
+USB_Pipe_2:
+.word 0x00000000 //bits 0-1 = max packet size, 2-3 = speed of device, 4-7 = endpoint addr, 8-15 = Unique device number, 16-17=_reserved,18-24=lowspeednodeport,
+//25-31=lowspeednodepoint , for both low speeds, if in low speed mode, they're used.
+USB_Pipe_Control_2:
+.word 0x00000000 //0-13=reserved, 14-15= packet type, 16-23=channel to use, 24=direction 1 = in | 0 = out,25-31=reserved
+USB_ConfigControl_2:
+.word 0x00000000 //0-7=current set config index, 8-15=current config string index, 16-23=device enum status, 24-31=reserved.
+.balign 4
+USB_MaxInterface_2: .word 0x00000008 //Probably don't need this.
+.balign 4
+USB_Interface_Descriptor_2_0:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_2_1:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_2_2:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_2_3:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_2_4:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_2_5:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_2_6:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_2_7:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+.balign 4
+USB_Endpoint_Descriptor_2_0:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //EndpointAddress 0-3=number,4-6=reserved,7=direction(0=out,1=in)
+.byte 0x00 //EndpointTransferType
+.hword 0x0000 //MaxPacketsize
+.byte 0x00 //PollingInterval in frames
+USB_Endpoint_Descriptor_2_1:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_2_2:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_2_3:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_2_4:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_2_5:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_2_6:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_2_7:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+.balign 4
+USB_Device_Descriptor_2:
+.byte 0x00 //Descriptor Length
+.byte 0x00 //Descriptor Type
+.hword 0x0000 //in bcd 0x210 = USB 2.10
+.byte 0x00 //Device Class
+.byte 0x00 //Subclass code (assigned by the USB-IF)
+.byte 0x00 //Protocol code (assigned by the USB-IF)
+.byte 0x00 //Maximum packet size for endpoint 0
+.hword 0x0000 //Vendor ID
+.hword 0x0000 //Product ID
+.hword 0x0000 //device version number (BCD)
+.byte 0x00 //String index to describe manufacturer
+.byte 0x00 //String index to describe product
+.byte 0x00 //string index with the device's serial number
+.byte 0x00 //number of possible configurations.
+USB_PayLoadType_2: .byte 0x00 //payload type that's being carried.
+USB_PayLoadPointer_2:
+.word 0x00000000 //non null = device is a HubDevice.
+.word 0x00000000 //non null = device is an HidDevice.
+.word 0x00000000 //non null = device is a MassStorageDevice.
+
+USBDevice_3:
+USB_Parent_3:
+.byte 0x00 //number
+.byte 0x00 //portnumber
+.hword 0x0000 //padding
+USB_Pipe_3:
+.word 0x00000000 //bits 0-1 = max packet size, 2-3 = speed of device, 4-7 = endpoint addr, 8-15 = Unique device number, 16-17=_reserved,18-24=lowspeednodeport,
+//25-31=lowspeednodepoint , for both low speeds, if in low speed mode, they're used.
+USB_Pipe_Control_3:
+.word 0x00000000 //0-13=reserved, 14-15= packet type, 16-23=channel to use, 24=direction 1 = in | 0 = out,25-31=reserved
+USB_ConfigControl_3:
+.word 0x00000000 //0-7=current set config index, 8-15=current config string index, 16-23=device enum status, 24-31=reserved.
+.balign 4
+USB_MaxInterface_3: .word 0x00000008 //Probably don't need this.
+.balign 4
+USB_Interface_Descriptor_3_0:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_3_1:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_3_2:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_3_3:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_3_4:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_3_5:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_3_6:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+USB_Interface_Descriptor_3_7:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //Number
+.byte 0x00 //AlternateSetting
+.byte 0x00 //EndpointCount
+.byte 0x00 //InterfaceClass
+.byte 0x00 //SubClass
+.byte 0x00 //Protocol
+.byte 0x00 //StringIndex
+.balign 4
+USB_Endpoint_Descriptor_3_0:
+.byte 0x00 //DescriptorLength
+.byte 0x00 //DescriptorType
+.byte 0x00 //EndpointAddress 0-3=number,4-6=reserved,7=direction(0=out,1=in)
+.byte 0x00 //EndpointTransferType
+.hword 0x0000 //MaxPacketsize
+.byte 0x00 //PollingInterval in frames
+USB_Endpoint_Descriptor_3_1:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_3_2:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_3_3:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_3_4:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_3_5:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_3_6:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+USB_Endpoint_Descriptor_3_7:
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.byte 0x00
+.hword 0x0000
+.byte 0x00
+.balign 4
+USB_Device_Descriptor_3:
+.byte 0x00 //Descriptor Length
+.byte 0x00 //Descriptor Type
+.hword 0x0000 //in bcd 0x210 = USB 2.10
+.byte 0x00 //Device Class
+.byte 0x00 //Subclass code (assigned by the USB-IF)
+.byte 0x00 //Protocol code (assigned by the USB-IF)
+.byte 0x00 //Maximum packet size for endpoint 0
+.hword 0x0000 //Vendor ID
+.hword 0x0000 //Product ID
+.hword 0x0000 //device version number (BCD)
+.byte 0x00 //String index to describe manufacturer
+.byte 0x00 //String index to describe product
+.byte 0x00 //string index with the device's serial number
+.byte 0x00 //number of possible configurations.
+USB_PayLoadType_3: .byte 0x00 //payload type that's being carried.
+USB_PayLoadPointer_3:
+.word 0x00000000 //non null = device is a HubDevice.
+.word 0x00000000 //non null = device is an HidDevice.
+.word 0x00000000 //non null = device is a MassStorageDevice.
+

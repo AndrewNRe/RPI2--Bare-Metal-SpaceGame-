@@ -1,0 +1,3 @@
+-First, go through and fix todo'd things in the code. This and the second main step should be done in tandem.
+-Go through and cleanup the code to be how you think it should be. Also marked this with a todo but wanted to state it again here.
+-Once those things are done, do a final release push and call it all good with this project :)
