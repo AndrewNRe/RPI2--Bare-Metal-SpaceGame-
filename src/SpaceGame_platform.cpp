@@ -1,4 +1,4 @@
-inline bit64 platform_memoryallocate(bit64 allocationamt);
+inline bit32 platform_memoryallocate(bit32 allocationamt);
 inline bit32 platform_getinput();
 inline void platform_render();
 inline void platform_bufferswap(bit32 buffercolor);

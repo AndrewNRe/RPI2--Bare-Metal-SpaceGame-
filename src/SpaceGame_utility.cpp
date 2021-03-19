@@ -4,7 +4,7 @@
 
 #define framerate 15
 
-f32 superslowf32_aprx_sqrt(f32 number) //TODO: maybe get a large speedup from writing this in assembly?
+f32 superslowf32_aprx_sqrt(f32 number) //TODO(Andrew): maybe get a large speedup from writing this in assembly?
 {
     f32 value = number;
     f32 composite = value*value;

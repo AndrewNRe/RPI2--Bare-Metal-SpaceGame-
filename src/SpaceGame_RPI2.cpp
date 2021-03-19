@@ -5,7 +5,7 @@
 #define printrenderedtrianglevalues false
 #define collisiondebug false
 
-//NOTE: These are technically platform dependant functions (except for render letter array and integer to ascii, wrote them in assembly for fun :) ), but are required for the program to function properly so they're included here.
+//NOTE: These are technically platform independant functions (except for render letter array and integer to ascii, wrote them in assembly for fun :) ), but are required for the program to function properly so they're included here.
 extern "C" f32 sinf(f32 a);
 extern "C" f32 cosf(f32 a);
 extern "C" void RenderLetterArray(bit8* letters, bit32 numCharToRender, bit32 xStart, bit32 yStart);
@@ -165,10 +165,10 @@ inline void platform_printinfo()
 #endif
 }
 
-inline bit64 platform_memoryallocate(bit64 allocationamt)
+inline bit32 platform_memoryallocate(bit32 allocationamt)
 {
-    bit32 truncate64 = allocationamt; bit32 amountallocated = 0;
-    bit32 address = RPI2_alloc(truncate64, amountallocated);
+    bit32 amountallocated = 0;
+    bit32 address = RPI2_alloc(allocationamt, amountallocated);
     if(amountallocated == 0){Assert(0);}
     return address;
 }
