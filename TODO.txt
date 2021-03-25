@@ -1,3 +1,20 @@
--First, go through and fix todo'd things in the code. This and the second main step should be done in tandem.
--Go through and cleanup the code to be how you think it should be. Also marked this with a todo but wanted to state it again here.
--Once those things are done, do a final release push and call it all good with this project :)
+A: Change the code to follow my current code style.
+-Change all structs to be lowercase
+-Change all function names to be uppercase.
+-Reduce code duplication.
+-Get rid of all globals except maybe memory dependent on what you want to do there. It's in the game code layer, so the way you do memory will be the same on all 
+platforms in this case. As such, I think doing something more robust, or requiring that you have a memory structure per allocation would be best.
+
+B: "multithread" the software renderer.
+-Need to ensure that I can use the other 3 cores.
+-Need a way to break the framebuffer up into chunks.
+-What are the boundary lines for how large a chunk can be? I don't want one thread to write to the framebuffer and cause some cpu cache flush or what not.
+-Is the previous statement relevant? Absolutely need to read on this.
+-Need to get some queue to issue out work to all the threads. Thinking that a lot of rework on the engine will be done to make this happen!
+
+C: Correct GJK to be more correct.
+-Refer to Haunt code if this is me doing this implement.
+-If someone else is doing this, the video I used to understand GJK was Casey Muratori's video: https://www.youtube.com/watch?v=Qupqu1xe7Io
+
+D: Fix the math of either the perspective projection matrix, and also just the general space math as I know it's gotta be wrong due to rotations rotating about the 
+world origin from what it looks like atm.

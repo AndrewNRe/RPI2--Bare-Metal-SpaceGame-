@@ -599,7 +599,7 @@ bx lr
 
 .globl RPI2_alloc
 RPI2_alloc: //r0 = desired size, r1 = addr of actual size. Return: r0 = base address, r1 = addr of actual size, but filled with actual size allocated.
-//NOTE: this allocation methodolgy doesn't work well with allocation / free festivals. Therefore, writing a more complex routine would be required to handle that case.
+//NOTE: this allocation methodolgy doesn't work well if you call need to free and allocate a ton. Therefore, writing a more complex routine would be required to handle that case as this is just a stack, effectively.
 	mov r5, r0 //r5 = desired size
 	adrl r6, ADDRESSABLE_CURRENT_SIZE
 	//
