@@ -2,7 +2,7 @@
 One of my original ideas behind writing code for the RPI2, was to provide a simplisitc SDK-like set of assembly and c code that others could use to develop bare metals games with
 as I have always liked the idea of programming consoles and see the RPI2 as no different from a console.
 Unfortunately, due to me not being on the team to get access to "top secret documentation" such as the USB chip's docs for instance, my ability was and is quite limited.
-Basically, I just wanted to clarify why this file is currently called "sdk.c". This isn't a serious SDK, and is a (at the time, I was 1 and 1/2 years experienced programmer) naive
+Basically, I just wanted to clarify why this file is currently called "sdk.c". This isn't a serious SDK, and is a (at the time, I was 1 and 1/2 years experienced programmer) probably naive
 learning attempt at seeing what goes into hardware making / what it would be like to write a very lightweight middle layer for a game console, or something along those lines.
 */
 //TODO(Andrew) In a future build, make sure you rename and separate particular assembly routines into new files. Also figure out what to do with the two c functions below!
@@ -11,7 +11,7 @@ learning attempt at seeing what goes into hardware making / what it would be lik
 #include "ANR_types.h"
 //RPI2 Assembly Routines
 extern void RenderLetterArray(bit8* letters, bit32 numCharToRender, bit32 xStart, bit32 yStart);
-extern void IntegerToAscii(void* writablemem, bit32 integer);
+extern bit32 IntegerToAscii(void* writablemem, bit32 integer);
 extern void SoftwareFrameBufferSwap(bit32 fillcolor);
 extern bit64 RPI2_QuerySystemTimerCounter();
 
@@ -85,4 +85,13 @@ void SDK_CHECK_IF_INTTERUPT() //TODO(Andrew) rewrite and optimize in assembly?
         
         OSMultithreadStatusWrite(1);
     }
+}
+
+//NOTE: C RUNTIME FUNCTIONS
+#define size_t unsigned int //NOTE: 32 bit platform!
+void* memset(void* dest, int c, size_t count)
+{
+    char* Dest = (char*)dest;
+    for(size_t b = 0; b < count; b++)
+    { Dest[b] = c; }
 }

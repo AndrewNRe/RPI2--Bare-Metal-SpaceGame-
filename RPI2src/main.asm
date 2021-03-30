@@ -216,7 +216,8 @@ bx lr
 
 .globl IntegerToAscii
 IntegerToAscii: //r0 = address to write ascii to, r1 = integer to convert to ascii
-push {r0, fp, r14}
+push {r1, fp, r14}
+	mov r8, r0 //r8 = address to write ascii to
 	ands r2, r1, #0x80000000
 	rsbne r1, r1, #0 //If negative, make it positive.
 	mov r2, #1
@@ -230,17 +231,19 @@ FindNumberPlace:
 bne FindNumberPlace
 	bit32div r2, r3, r4, r5
 	mov r2, r4 //After running the FindNumberPlace procedure, if you're 1 number place above, you need to go down 1 number place!
+	mov r0, #1 //r0 = Used in loop below to figure out how many ascii characters were written. 
 GetAsciiValue:
 	mov r5, r2
 	bit32div r1, r5, r4, r7 //r1 = remainder, for instance, before it was 423, then it'd become 23. If r4 = single integer. Then you would have 4.
 	SINGLEintegertoASCII r4 //r4 = asciicodepoint
-	strb r4, [r0], #1
+	strb r4, [r8], #1
+	add r0, r0, #1
 	mov r3, #10
 	bit32div r2, r3, r4, r5
 	mov r2, r4
 	cmp r2, #0
 bgt GetAsciiValue
-pop {r0, fp, r14}
+pop {r1, fp, r14}
 bx lr
 
 .globl RenderLetterArray
@@ -599,7 +602,7 @@ bx lr
 
 .globl RPI2_alloc
 RPI2_alloc: //r0 = desired size, r1 = addr of actual size. Return: r0 = base address, r1 = addr of actual size, but filled with actual size allocated.
-//NOTE: this allocation methodolgy doesn't work well if you call need to free and allocate a ton. Therefore, writing a more complex routine would be required to handle that case as this is just a stack, effectively.
+//NOTE: this allocation methodolgy doesn't work well if you call need to free the chunk. Therefore, writing a more complex routine would be required to handle that case as this is just a stack, effectively.
 	mov r5, r0 //r5 = desired size
 	adrl r6, ADDRESSABLE_CURRENT_SIZE
 	//

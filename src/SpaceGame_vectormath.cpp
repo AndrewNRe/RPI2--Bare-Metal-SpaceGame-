@@ -5,6 +5,25 @@ struct vec3 { f32 x, y, z;};
 
 struct vec4 { f32 x, y, z, w; };
 
+inline vec3 vec4tovec3(vec4 B)
+{
+    vec3 Result;
+    Result.x = B.x;
+    Result.y = B.y;
+    Result.z = B.z;
+    return Result;
+}
+
+inline vec4 vec3tovec4(vec3 B, f32 w)
+{
+    vec4 Result;
+    Result.x = B.x;
+    Result.y = B.y;
+    Result.z = B.z;
+    Result.w = w;
+    return Result;
+}
+
 inline bool32 operator!=(vec3 A, vec3 B)
 {
     bool32 result = 0;
@@ -409,12 +428,12 @@ inline vec3 operator*(mat3x4 M, vec3 V) //NOTE: this ASSUMES that you are transl
 
 inline vec4 operator*(mat4x4 M, vec4 V)
 {
-    vec4 result;
-    result.x = (M.d[0][0] * V.x) + (M.d[0][1] * V.y) + (M.d[0][2] * V.z) + (M.d[0][3] * V.w);
-    result.y = (M.d[1][0] * V.x) + (M.d[1][1] * V.y) + (M.d[1][2] * V.z) + (M.d[1][3] * V.w);
-    result.z = (M.d[2][0] * V.x) + (M.d[2][1] * V.y) + (M.d[2][2] * V.z) + (M.d[2][3] * V.w);
-    result.w = (M.d[3][0] * V.x) + (M.d[3][1] * V.y) + (M.d[3][2] * V.z) + (M.d[3][3] * V.w);
-    return(result);
+    vec4 Result;
+    Result.x = (M.d[0][0] * V.x) + (M.d[0][1] * V.y) + (M.d[0][2] * V.z) + (M.d[0][3] * V.w);
+    Result.y = (M.d[1][0] * V.x) + (M.d[1][1] * V.y) + (M.d[1][2] * V.z) + (M.d[1][3] * V.w);
+    Result.z = (M.d[2][0] * V.x) + (M.d[2][1] * V.y) + (M.d[2][2] * V.z) + (M.d[2][3] * V.w);
+    Result.w = (M.d[3][0] * V.x) + (M.d[3][1] * V.y) + (M.d[3][2] * V.z) + (M.d[3][3] * V.w);
+    return(Result);
 }
 
 inline void transpose_mat3(mat3x3* A)
@@ -459,55 +478,28 @@ inline f32 clamp(f32 min, f32 value, f32 max)
     return result;
 }
 
-//NOTE: everything below here is all quaternion stuff.
-struct quaternion { f32 x; f32 y; f32 z; f32 r; };
-//#define generatequaternion(x, y, z, theta) {(f32)(x*sinf(theta/2)), (f32)(y*sinf(theta/2)), (f32)(z*sinf(theta/2)), (f32)(cosf(theta/2))};
-inline quaternion generatequaternion(f32 xaxis, f32 yaxis, f32 zaxis, f32 theta)//NOTE: the x, y, and z must all be unit length!
+inline vec2 clamp_vec2(vec2 Min, vec2 Value, vec2 Max)
 {
-    quaternion result;
-    result.x = xaxis*sinf(theta/2);
-    result.y = yaxis*sinf(theta/2);
-    result.z = zaxis*sinf(theta/2);
-    result.r = cosf(theta/2);
-    return result;
+    vec2 Result;
+    Result.x = clamp(Min.x, Value.x, Max.x);
+    Result.y = clamp(Min.y, Value.y, Max.y);
+    return Result;
 }
 
-inline quaternion nlerp(quaternion a, quaternion b, f32 progression)
+inline mat3x3 RotationMatrix(vec3 RotationAxes)
 {
-    quaternion result;
-    result.x = 0; result.y = 0; result.z = 0; result.r = 0;
-    return result;
+    mat3x3 Result;
+    Result = rotate3x3Z(RotationAxes.z) * rotate3x3Y(RotationAxes.y) * rotate3x3X(RotationAxes.x); //NOTE: Right handed coordinate system. +X right, +Y up, +Z out.
+    return Result;
 }
 
-inline quaternion operator*(quaternion A, quaternion B) //Grassman product
+inline mat4x4 RotationAxesAndTranslationToMat4x4(vec3 RotationAxes, vec3 Translation)
 {
-    quaternion result;
-    result.x = (A.r*B.x + B.r*A.x + A.x*B.x);
-    result.y = (A.r*B.y + B.r*A.y + A.y*B.y);
-    result.z = (A.r*B.z + B.r*A.z + A.z*B.z);
-    vec3 V3A; V3A.x = A.x; V3A.y = A.y; V3A.z = A.z;
-    vec3 V3B; V3B.x = B.x; V3B.y = B.y; V3B.z = B.z;
-    result.r = (A.r*B.r - dot_vec3(V3A, V3B));
-    return result;
-}
-
-inline vec3 quaternionrotatevec3(quaternion Q, vec3 A)
-{
-    quaternion IQ;
-    IQ.x = -Q.x;
-    IQ.y = -Q.y;
-    IQ.z = -Q.z;
-    IQ.r = Q.r;
-    quaternion AQ; 
-    AQ.x = A.x; 
-    AQ.y = A.y; 
-    AQ.z = A.z; 
-    AQ.r = 0;
-    quaternion qresult = (Q*AQ)*IQ;
-    vec3 result;
-    result.x = qresult.x;
-    result.y = qresult.y;
-    result.z = qresult.z;
-    //NOTE: don't have to multiply W or R because W for A is going to be 0. So it'd be a waste of computing resources.
-    return(result);
+    mat3x3 m3 = RotationMatrix(RotationAxes);
+    mat4x4 Result;
+    Result.d[0][0] = m3.d[0][0]; Result.d[0][1] = m3.d[0][1]; Result.d[0][2] = m3.d[0][2]; Result.d[0][3] = Translation.x;
+    Result.d[1][0] = m3.d[1][0]; Result.d[1][1] = m3.d[1][1]; Result.d[1][2] = m3.d[1][2]; Result.d[1][3] = Translation.y;
+    Result.d[2][0] = m3.d[2][0]; Result.d[2][1] = m3.d[2][1]; Result.d[2][2] = m3.d[2][2]; Result.d[2][3] = Translation.z;
+    Result.d[3][0] = 0.0f; Result.d[3][1] = 0.0f; Result.d[3][2] = 0.0f; Result.d[3][3] = 1.0f;
+    return Result;
 }

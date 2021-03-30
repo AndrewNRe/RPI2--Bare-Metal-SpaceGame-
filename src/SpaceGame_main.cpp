@@ -1,46 +1,47 @@
 bool32 gameisrunning = true; //NOTE: global: game is running.
 bit64 main_lastframeTIME = 0; //NOTE global: main thread's last frame time.
 
-inline void spacegamemain()
+inline void SpaceGameMain(temple_platform* TemplePlatform)
 {
-    bit32 backbuffercolor = 0xFF000000;
+    bit32 BackBufferColor = 0xFF000000;
     f32 gravity = .01f;
     for(;gameisrunning;)
     {
         if(player->position.y < -1.0f)
         {//If player falls
-            resettempleplatformposition(0);
+            for(bit32 p = 0; p < DESIRED_TEMPLE_PLATFORM_COUNT; p++)
+            { TemplePlatform->Instance[p].Timer = 0; } //Reset the platforms back to their starting positions.
             {//Reset player if they fall too low.
                 resetplayerlaunch();
                 player->rotation = identity3x3(); player->theta = 0.0f;
                 player->onplatform = 0;
-                f32 offset = .01f;
-                player->position.x = platform[0].floorCD[0].position.x + offset;
-                player->position.y = platform[0].floorCD[0].position.y+.01f;
-                player->position.z = platform[0].floorCD[0].position.z - offset;
+                f32 Offset = .01f;
+                TemplePlatform->Instance[0];
+                player->position.x = (TemplePlatform->Mesh.Vertex[0].Position.x + TemplePlatform->Instance[0].Target[0].x) + Offset;
+                player->position.y = (TemplePlatform->Mesh.Vertex[0].Position.y + TemplePlatform->Instance[0].Target[0].y) +.01f;
+                player->position.z = (TemplePlatform->Mesh.Vertex[0].Position.z + TemplePlatform->Instance[0].Target[0].z) - Offset;
             }
             player->numberoftimes_landed = 0; //Reset player's score.
         }
         
-        {//Move platform(s)
-            for(bit32 p = 0; p < sizeof(platform)/sizeof(TemplePlatform); p++)
+        {//Move temple platform(s)
+            for(bit32 p = 0; p < DESIRED_TEMPLE_PLATFORM_COUNT; p++)
             {
                 if(p != player->onplatform)
                 {
-                    bit32 increment = 1;
-                    platform[p].movedata.timer += increment; 
-                    if(platform[p].movedata.timer >= 30){ platform[p].movedata.timer = 0; platform[p].movedata.translationaxes = -platform[p].movedata.translationaxes; }
-                    for(bit32 i = 0; i < sizeof(platform[p].floorCD)/sizeof(Vertex) + sizeof(platform[p].ceilingCD)/sizeof(Vertex); i++)
-                    {//This transforms all vertexes (including ceiling vertexes!)
-                        platform[p].floorCD[i].position =  platform[p].floorCD[i].position + platform[p].movedata.translationaxes;
-                    }
+                    s32 Increment = 1;
+                    TemplePlatform->Instance[p].Timer += (TemplePlatform->Instance[p].Rewind) ? -Increment : Increment;
+                    if(TemplePlatform->Instance[p].Timer > TEMPLE_PLATFORM_TIMER_LOOP_FRAME_COUNT)
+                    { TemplePlatform->Instance[p].Rewind = true; }
+                    else if(TemplePlatform->Instance[p].Timer < 0)
+                    { TemplePlatform->Instance[p].Rewind = false; }
                 }
             }
         }
         
         if(player->manipulationInfo != playerMIDAIR)
         {//Control Camera()
-            if(platform_getinput())
+            if(Platform_GetInput())
             { 
                 if(player->manipulationInfo == 2)
                 {
@@ -64,18 +65,22 @@ inline void spacegamemain()
             //f32 time = platform_querycurrenttime(main_lastframeTIME); 
             //player->position += (0.5f*acceleration*(time*time)) + velocity*time + oldposition;
             //player->velocity = acceleration * time + velocity;
+#if 0 //"It was working" code
             player->lerp+=0.1f; 
             if(player->lerp >= 1.1f){player->lerp = 1.1f;}
             else{player->position = lerp_vec3(player->baseposition, player->launchDirection, player->lerp);}
+#endif
+            bit32 Dummy = 32;
             //Apply gravity to the interpolated values that player is pulling from.
         }
+#if TEMPORARYREVAMP
         
         {//Apply gravity
             player->position.y -= gravity;
         }
         
-        for(bit32 p = 0; p < sizeof(platform)/sizeof(TemplePlatform); p++)
-        {//Collision "GJK" on the ingame platforms.
+        for(bit32 p = 0; p < DESIRED_TEMPLE_PLATFORM_COUNT; p++)
+        {//Collision "GJK" on the temple platforms.
             bool32 floorchecked = false;
             bit32 offset = 0; Vertex* collisiondata = nullptr; bit32 numberofvertexes = 0;
             checkcollision:
@@ -264,10 +269,12 @@ inline void spacegamemain()
             EndOfSimplex:
             if(!floorchecked){ floorchecked = true; goto checkcollision; }
         }
+#endif
         
-        platform_render();
-        platform_printinfo();
-        platform_sleep(main_lastframeTIME);
-        platform_bufferswap(backbuffercolor);
+        //Platform_Render(BackBufferColor, TemplePlatform);
+#if TEMPORARYREVAMP
+        Platform_PrintInfo();
+#endif
+        Platform_Sleep(main_lastframeTIME);
     } //End of game loop
 }

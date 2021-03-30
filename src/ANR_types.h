@@ -17,3 +17,6 @@ typedef unsigned long long bit64;
 //Boolean type(s)
 typedef unsigned int bool32;
 typedef unsigned long long bool64;
+
+//Keyword
+#define global_variable static

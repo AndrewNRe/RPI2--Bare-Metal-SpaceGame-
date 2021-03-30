@@ -1,21 +1,15 @@
-struct Memory
+struct game_memory
 {
     bit32 StartAddress;
     bit32 EndAddress;
     bit32 RecordPosition;
     bit32 StackPosition;
 };
+global_variable game_memory Memory;
 #define DesiredMemorySize Kilobytes(4)
 
-#define recordpush(sizeofdata) (memory.RecordPosition); (memory.RecordPosition += sizeofdata); Assert(memory.RecordPosition < memory.StackPosition);
-#define stackpush(sizeofdata) (memory.StackPosition - sizeofdata); (memory.StackPosition-=sizeofdata); Assert(memory.StackPosition > memory.RecordPosition);
-#define stackpop(sizeofdata) (memory.StackPosition+=sizeofdata); Assert(memory.StackPosition <= memory.EndAddress);
+#define recordpush(sizeofdata) (Memory.RecordPosition); (Memory.RecordPosition += sizeofdata); Assert(Memory.RecordPosition < Memory.StackPosition);
+#define StackPush(sizeofdata) (Memory.StackPosition - sizeofdata); (Memory.StackPosition-=sizeofdata); Assert(Memory.StackPosition > Memory.RecordPosition);
+#define StackPop(sizeofdata) (Memory.StackPosition+=sizeofdata); Assert(Memory.StackPosition <= Memory.EndAddress);
 
-Memory memory; //NOTE: Memory global
-inline void setupmemory()
-{
-    memory.StartAddress = platform_memoryallocate(DesiredMemorySize);
-    memory.EndAddress = memory.StartAddress + DesiredMemorySize;
-    memory.RecordPosition = memory.StartAddress;
-    memory.StackPosition = memory.EndAddress;
-}
+#define RecordPushArray(type, Count) ((type*)Memory.RecordPosition); (Memory.RecordPosition += sizeof(type)*(Count)); Assert(Memory.RecordPosition < Memory.StackPosition);

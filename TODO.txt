@@ -18,3 +18,17 @@ C: Correct GJK to be more correct.
 
 D: Fix the math of either the perspective projection matrix, and also just the general space math as I know it's gotta be wrong due to rotations rotating about the 
 world origin from what it looks like atm.
+
+E: Don't store full sets of vertex / index data for N temple platforms. You should just store a position and only one instance of the mesh! //As of 3/27/21, 
+//this is partially done. Still have a bit to go on it though. Mostly just have to rework the entire platform render / player system so game code and such.
+
+
+Currently working on 3/30/21:
+Understand why the test triangle isn't being rendered and how to solve it!
+-To help with this, i'm working on making the float print routine I pullled from my work on Haunt, work in this engine.
+Buuuuutttttt Haunt was written for crazy dumb fast machines, so I gotta do a bit of work on it / need to change a couple things with it I think (didn't look closely yet).
+Goal is to just print vec2s to see what the projected verts are!
+
+-The RenderLetterArray routine does not end if there's a null termination character in the string. Is this ok? I mean, it's faster for it to not check for null term. But, in
+terms of what people expect, this is not very good. But, letting people write their own print routine that does this might be better? I am unsure. Would love input on this
+from whoever!
