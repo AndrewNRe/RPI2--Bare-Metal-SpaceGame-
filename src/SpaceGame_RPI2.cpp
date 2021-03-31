@@ -9,8 +9,8 @@
 //NOTE: These are technically platform independant functions (except for render letter array and integer to ascii, wrote them in assembly for fun :) ), but are required for the program to function properly so they're included here.
 extern "C" f32 sinf(f32 a);
 extern "C" f32 cosf(f32 a);
-extern "C" void RenderLetterArray(char* letters, bit32 numCharToRender, bit32 xStart, bit32 yStart);
-extern "C" bit32 IntegerToAscii(void* bit8array, bit32 integer);
+extern "C" void RenderLetterArray(char* letters, bit32 numCharToRender, bit32 xStart, bit32 yStart); //Return is how far X progressed.
+extern "C" bit32 IntegerToAscii(void* bit8array, bit32 integer); //Return is length of string data wrote.
 #if debug
 extern "C" void SDK_BLINKBOARD(bit32 number_of_flashes);
 #define Assert(Expression) if(!(Expression)) { for(;;){SDK_BLINKBOARD(1);} }
@@ -50,6 +50,11 @@ extern "C" bit32 RPI2_Query_ThreadID();
 #define SCREEN_X 640
 #define SCREEN_Y 480
 
+#define MONOSPACED_TEXT_X_START 1
+#define MONOSPACED_TEXT_Y_START 30
+#define MONOSPACED_TEXT_Y_INCREMENT 10
+#define MONOSPACED_TEXT_X_INCREMENT 32
+
 //NOTE: platform layer defintions
 inline bit32 FloatingPointToAscii(f32 FloatValue, char* Number)
 { //TODO(Andrew) Maybe rewrite this in assembly if it's too slow?
@@ -79,20 +84,25 @@ inline bit32 FloatingPointToAscii(f32 FloatValue, char* Number)
     return c;
 }
 
-#if 0
-inline void RPI2_printvec2(bit32 xStart, bit32 yStart, bit32 identifier, vec2 V, bit32 mulby)
-{
-    bit8 c[18];
-    c[0] = 'I'; c[1] = ':'; c[2] = ' '; c[3] = ' ';c[4] = ' '; c[5] = ' ';
-    c[6] = 'X'; c[7] = ':'; c[8] = ' '; c[9] = ' '; c[10] = ' '; c[11] = ' ';
-    c[12] = 'Y'; c[13] = ':'; c[14] = ' '; c[15] = ' '; c[16] = ' '; c[17] = ' ';
-    bit32 Vx = V.x*mulby; bit32 Vy = V.y*mulby;
-    IntegerToAscii(&c[2], identifier);
-    IntegerToAscii(&c[8], Vx);
-    IntegerToAscii(&c[14], Vy);
-    RenderLetterArray(c, sizeof(c), xStart, yStart);
+#define PrintVector(type, Data, PrintXLine, PrintYLine) RPI2_PrintVector(sizeof(type)/sizeof(f32), (vec4*)(Data), (PrintXLine), (PrintYLine)) //NOTE: Can use in game code version, since it's easy to redefine per platform.
+inline internal void RPI2_PrintVector(bit32 Length, vec4* Data, bit32* PrintXLine, bit32* PrintYLine)//NOTE: Since the longest vector is 4, just interpret the N length vector as 4 since you can just print less.
+{//NOTE: This is for speed reasons that i'm making this its own function
+    for(bit32 e = 0; e < Length; e++)
+    {
+        char String[128]; //Random guess on required size of all strings.
+        bit32 c = FloatingPointToAscii(Data->E[e], String);
+        RenderLetterArray(String, c, (*PrintXLine), (*PrintYLine));
+        bit32 Computation = MONOSPACED_TEXT_X_INCREMENT*c;
+        if((*PrintXLine) + Computation >= SCREEN_X - 1)
+        {
+            (*PrintXLine) = MONOSPACED_TEXT_X_START;
+            (*PrintYLine) += MONOSPACED_TEXT_Y_INCREMENT;
+        }
+        else{ (*PrintXLine) += Computation; }
+    }
 }
 
+#if 0
 inline void Platform_PrintInfo()
 {
     bit32 xStart = 1; bit32 yStart = 10; bit32 yIncrement = 10;
@@ -234,7 +244,7 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
         Triangle[1] = {0.01f, 0.01f, Z};
         Triangle[2] = {0.9f, 0.01f, Z};
         
-        bit32 PrintXLine = 1; bit32 PrintYLine = 30;
+        bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
         
         mat4x4 Transform = PerspectiveTransform * RotationAxesAndTranslationToMat4x4({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, IntoScreenValue});
         
@@ -244,6 +254,7 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
             vec4 ProjectedVertex4 = Transform * vec3tovec4(Triangle[v], 1.0f);
             vec2 ProjectedVertex = {ProjectedVertex4.x / ProjectedVertex4.w, ProjectedVertex4.y / ProjectedVertex4.w};
             ProjectedVertex = clamp_vec2(BottomAndTopClipPlane, ProjectedVertex, LeftAndRightClipPlane);
+            PrintVector(vec2, &ProjectedVertex, &PrintXLine, &PrintYLine);
             {//Convert the final vertex into the correct scanline position.
                 TriangleOnScanline[s] = (bit32)(ProjectedVertex.x * (f32)SCREEN_X); 
                 TriangleOnScanline[s+1] = (bit32)(ProjectedVertex.y * (f32)SCREEN_Y); 
@@ -254,16 +265,9 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
         SoftwareDrawTriangle(TriangleOnScanline[0], TriangleOnScanline[1], TriangleOnScanline[2], TriangleOnScanline[3], TriangleOnScanline[4], TriangleOnScanline[5], 
                              0xFF0000FF, 0xFF0000FF, 0xFF0000FF);
         
-        {//TODO(Andrew) DELETE LATER!!! Testing to ensure floating printing works
-            char FloatingPointString[64]; f32 FloatValue = 1234.567;
-            bit32 c = FloatingPointToAscii(FloatValue, FloatingPointString);
-            RenderLetterArray(FloatingPointString, c, PrintXLine, PrintYLine);
-        }//TODO(Andrew) End test
     }
-    
     SoftwareFrameBufferSwap(BackBufferColor);
 }
-
 #else
 inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatform)
 {

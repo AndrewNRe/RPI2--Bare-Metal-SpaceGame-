@@ -20,3 +20,31 @@ typedef unsigned long long bool64;
 
 //Keyword
 #define global_variable static
+#define internal static
+
+//Vector stuff
+union vec2 
+{
+    struct { f32 x, y; };
+    struct { f32 u, v; };
+    f32 E[2];
+};
+
+union vec3
+{
+    struct { f32 x, y, z; };
+    struct { f32 u, v, w; };
+    f32 E[3];
+};
+
+union vec4
+{
+    struct{ f32 x, y, z, w; };
+    f32 E[4];
+};
+
+//Matricies
+struct mat2x2 { f32 d[2][2]; };
+struct mat3x3 { f32 d[3][3]; };
+struct mat3x4 { f32 d[4][3]; };
+struct mat4x4 { f32 d[4][4]; };

@@ -1,10 +1,3 @@
-//Vectors
-struct vec2 { f32 x, y;};
-
-struct vec3 { f32 x, y, z;};
-
-struct vec4 { f32 x, y, z, w; };
-
 inline vec3 vec4tovec3(vec4 B)
 {
     vec3 Result;
@@ -297,12 +290,6 @@ inline vec3 cross(vec3 A, vec3 B)
 	result.z = (A.x*B.y - A.y*B.x);
 	return(result);
 }
-
-//Matricies
-struct mat2x2 { f32 d[2][2]; };
-struct mat3x3 { f32 d[3][3]; };
-struct mat3x4 { f32 d[4][3]; };
-struct mat4x4 { f32 d[4][4]; };
 
 inline mat3x3 identity3x3()
 {
