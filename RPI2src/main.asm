@@ -246,47 +246,99 @@ bgt GetAsciiValue
 pop {r1, fp, r14}
 bx lr
 
+//.globl RenderLetterArray //TODO(Andrew) DELETE THIS OLD ROUTINE!
+//RenderLetterArray: //r0 = address of the byte array, r1 = number of characters to render, r2 = x pos, r3 = y pos
+//	push {r0, fp, r14}
+//	add r1, r1, r0 // r1 = total number of characters to write for easier comparision.
+//	adrl r4, CurrentFrameBuffer
+//	ldr r5,[r4]
+//	adrl r4, WriteFB_Addresses
+//	ldr r4,[r4, r5] //r4 = framebuffer base
+//	mov r8, #SCREEN_X
+//	mul r3, r3, r8 //r3 = number of scanlines for y
+//	add r2, r2, r3
+//	lsl r2, #2 //Go from screen space to "byte space".
+//	add r2, r2, r4 //r2 = Actual framebuffer base.
+//	add r3, r2, #32 //r3 = first scanline end, 8 pixels moved from r2.
+//	add r4, r3, #((SCREEN_X*4)*8) //r4 = end of letter.
+//	RenderLetterLoop:
+//		mov r5, r2
+//		mov r6, r3
+//		ldrb r7, [r0], #1
+//		sub r7, #0x20 //move all values down from their ascii value.
+//		lsl r7, #8 //r7 = amount to offset to get correct pixels.
+//		adrl r8, FontData
+//		add r7, r7, r8 //r7 = Current character's pixels.
+//		DrawLetter:
+//			mov r8, r5 //r8 = scanline write pointer.
+//			DrawScanline:
+//				ldr r9, [r7], #4 //load pixel
+//				str r9, [r8], #4 //store pixel
+//				cmp r8, r6
+//			blt DrawScanline
+//			add r5, #(SCREEN_X*4)
+//			add r6, #(SCREEN_X*4)
+//			cmp r6, r4
+//		blt DrawLetter
+//		add r2, r2, #32 //Move forward for next character.
+//		add r3, r3, #32
+//		add r4, r4, #32
+//		cmp r0, r1
+//	blt RenderLetterLoop
+//	pop {r0, fp, r14}
+//bx lr
+
 .globl RenderLetterArray
-RenderLetterArray: //r0 = address of the byte array, r1 = number of characters to render, r2 = x pos, r3 = y pos
+RenderLetterArray: //r0 = address of the string, r1 = x pos address, r2 = y pos address
 	push {r0, fp, r14}
-	add r1, r1, r0 // r1 = total number of characters to write for easier comparision.
-	adrl r4, CurrentFrameBuffer
-	ldr r5,[r4]
-	adrl r4, WriteFB_Addresses
-	ldr r4,[r4, r5] //r4 = framebuffer base
-	mov r8, #SCREEN_X
-	mul r3, r3, r8 //r3 = number of scanlines for y
-	add r2, r2, r3
-	lsl r2, #2 //Go from screen space to "byte space".
-	add r2, r2, r4 //r2 = Actual framebuffer base.
-	add r3, r2, #32 //r3 = first scanline end, 8 pixels moved from r2.
-	add r4, r3, #((SCREEN_X*4)*8) //r4 = end of letter.
+	adrl r3, CurrentFrameBuffer
+	ldr r4,[r3]
+	adrl r3, WriteFB_Addresses
+	ldr r3,[r3, r4] //r3 = framebuffer base
+	ldr r5, [r2]
+	mov r6, #SCREEN_X
+	mul r5, r5, r6 //r5 = number of scanlines for y
+	ldr r4, [r1]
+	add r4, r4, r5
+	lsl r4, #2 //Go from screen space to "4 byte space"
+	add r4, r4, r3 //r4 = actual framebuffer base.
+	add r5, r4, #BITS_PER_PIXEL //r5 = first scanline end, 8 pixels moved from r2.
+	add r11, r4, #((SCREEN_X*4)*8)
 	RenderLetterLoop:
-		mov r5, r2
-		mov r6, r3
-		ldrb r7, [r0], #1
-		sub r7, #0x20 //move all values down from their ascii value.
-		lsl r7, #8 //r7 = amount to offset to get correct pixels.
-		adrl r8, FontData
-		add r7, r7, r8 //r7 = Current character's pixels.
-		DrawLetter:
-			mov r8, r5 //r8 = scanline write pointer.
-			DrawScanline:
-				ldr r9, [r7], #4 //load pixel
-				str r9, [r8], #4 //store pixel
-				cmp r8, r6
-			blt DrawScanline
-			add r5, #(SCREEN_X*4)
-			add r6, #(SCREEN_X*4)
-			cmp r6, r4
-		blt DrawLetter
-		add r2, r2, #32 //Move forward for next character.
-		add r3, r3, #32
-		add r4, r4, #32
-		cmp r0, r1
-	blt RenderLetterLoop
+		ldrb r8, [r0], #1
+		cmp r8, #0 //Is null term character?
+		beq RenderLetterLoopEnd
+		mov r6, r4
+		mov r7, r5
+		sub r8, #0x20 //NOTE: The monospace fonts start from the white space character so you must pull the value down to choose the correct letter to render.
+		lsl r8, #2 //Now ready to load the actual pixels of the current letter if offsetted from correct pointer.
+		adrl r9, FontData
+		add r8, r8, r9 //r8 = Current character's pixels from memory!
+			DrawLetter:
+				mov r9, r6 //r9 = Framebuffer scanline write pointer
+				DrawScanline:
+					ldr r10, [r8], #4 //Loaded font pixel
+					str r10, [r9], #4 //store pixel to framebuffer
+					cmp r9, r7
+				blt DrawScanline
+				add r6, r6, #(SCREEN_X*4)
+				add r7, r7, #(SCREEN_X*4)
+				cmp r7, r11 //Check if still in bounds for the character to properly be on the next 'y' scanline.
+			blt DrawLetter
+		add r3, r3, #BITS_PER_PIXEL //Move forward for next character.
+		add r11, r11, #BITS_PER_PIXEL
+		add r5, r5, #BITS_PER_PIXEL
+	b RenderLetterLoop
+	RenderLetterLoopEnd:
+	sub r5, r5, r3 //Remove framebuffer base
+	lsr r5, #2 //Go from "4 byte space" to screen space
+	str r5, [r1]
+	ldr r3, [r2]
+	add r3, #1
+	str r3, [r2] //NOTE: Since this routine currently just renders for one scanline and doesn't try to auto jump if you render text off screen, just go down one! (remember, down is up).
 	pop {r0, fp, r14}
 bx lr
+
 
 //-------------------------------------------PROCEDURES---------------------------------------
 

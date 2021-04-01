@@ -9,7 +9,7 @@
 //NOTE: These are technically platform independant functions (except for render letter array and integer to ascii, wrote them in assembly for fun :) ), but are required for the program to function properly so they're included here.
 extern "C" f32 sinf(f32 a);
 extern "C" f32 cosf(f32 a);
-extern "C" void RenderLetterArray(char* letters, bit32 numCharToRender, bit32 xStart, bit32 yStart); //Return is how far X progressed.
+extern "C" void RenderLetterArray(char* letters, bit32* xStart, bit32* yStart); //NOTE: xStart and yStart are both modifed in this procedure.
 extern "C" bit32 IntegerToAscii(void* bit8array, bit32 integer); //Return is length of string data wrote.
 #if debug
 extern "C" void SDK_BLINKBOARD(bit32 number_of_flashes);
@@ -91,7 +91,7 @@ inline internal void RPI2_PrintVector(bit32 Length, vec4* Data, bit32* PrintXLin
     {
         char String[128]; //Random guess on required size of all strings.
         bit32 c = FloatingPointToAscii(Data->E[e], String);
-        RenderLetterArray(String, c, (*PrintXLine), (*PrintYLine));
+        RenderLetterArray(String, PrintXLine, PrintYLine);
         bit32 Computation = MONOSPACED_TEXT_X_INCREMENT*c;
         if((*PrintXLine) + Computation >= SCREEN_X - 1)
         {
