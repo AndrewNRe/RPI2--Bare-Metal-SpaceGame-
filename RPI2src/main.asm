@@ -303,7 +303,7 @@ RenderLetterArray: //r0 = address of the string, r1 = x pos address, r2 = y pos 
 	lsl r4, #2 //Go from screen space to "4 byte space"
 	add r4, r4, r3 //r4 = actual framebuffer base.
 	add r5, r4, #BITS_PER_PIXEL //r5 = first scanline end, 8 pixels moved from r2.
-	add r11, r4, #((SCREEN_X*4)*8)
+	add r11, r5, #((SCREEN_X*4)*8)
 	RenderLetterLoop:
 		ldrb r8, [r0], #1
 		cmp r8, #0 //Is null term character?
@@ -311,7 +311,7 @@ RenderLetterArray: //r0 = address of the string, r1 = x pos address, r2 = y pos 
 		mov r6, r4
 		mov r7, r5
 		sub r8, #0x20 //NOTE: The monospace fonts start from the white space character so you must pull the value down to choose the correct letter to render.
-		lsl r8, #2 //Now ready to load the actual pixels of the current letter if offsetted from correct pointer.
+		lsl r8, #8 //Now ready to load the actual pixels of the current letter if offsetted from correct pointer.
 		adrl r9, FontData
 		add r8, r8, r9 //r8 = Current character's pixels from memory!
 			DrawLetter:
@@ -325,9 +325,9 @@ RenderLetterArray: //r0 = address of the string, r1 = x pos address, r2 = y pos 
 				add r7, r7, #(SCREEN_X*4)
 				cmp r7, r11 //Check if still in bounds for the character to properly be on the next 'y' scanline.
 			blt DrawLetter
-		add r3, r3, #BITS_PER_PIXEL //Move forward for next character.
-		add r11, r11, #BITS_PER_PIXEL
+		add r4, r4, #BITS_PER_PIXEL //Move forward for next character.
 		add r5, r5, #BITS_PER_PIXEL
+		add r11, r11, #BITS_PER_PIXEL
 	b RenderLetterLoop
 	RenderLetterLoopEnd:
 	sub r5, r5, r3 //Remove framebuffer base

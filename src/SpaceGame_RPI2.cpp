@@ -84,23 +84,33 @@ inline bit32 FloatingPointToAscii(f32 FloatValue, char* Number)
     return c;
 }
 
+#define PrintFloat(Data, PrintXLine, PrintYLine) RPI2_PrintFloat((Data), (PrintXLine), (PrintYLine))
+inline internal bit32 RPI2_PrintFloat(f32 Data, bit32* PrintXLine, bit32* PrintYLine)
+{
+    bit32 Result = 0;
+    char String[128];
+    Result = FloatingPointToAscii(Data, String);
+    RenderLetterArray(String, PrintXLine, PrintYLine);
+    bit32 Computation = MONOSPACED_TEXT_X_INCREMENT*Result;
+    if((*PrintXLine) + Computation >= SCREEN_X - 1)
+    {
+        (*PrintXLine) = MONOSPACED_TEXT_X_START;
+        (*PrintYLine) += MONOSPACED_TEXT_Y_INCREMENT;
+    }
+    else{ (*PrintXLine) += Computation; }
+    return Result;
+}
+
 #define PrintVector(type, Data, PrintXLine, PrintYLine) RPI2_PrintVector(sizeof(type)/sizeof(f32), (vec4*)(Data), (PrintXLine), (PrintYLine)) //NOTE: Can use in game code version, since it's easy to redefine per platform.
 inline internal void RPI2_PrintVector(bit32 Length, vec4* Data, bit32* PrintXLine, bit32* PrintYLine)//NOTE: Since the longest vector is 4, just interpret the N length vector as 4 since you can just print less.
 {//NOTE: This is for speed reasons that i'm making this its own function
+    bit32 Result = 0;
     for(bit32 e = 0; e < Length; e++)
     {
-        char String[128]; //Random guess on required size of all strings.
-        bit32 c = FloatingPointToAscii(Data->E[e], String);
-        RenderLetterArray(String, PrintXLine, PrintYLine);
-        bit32 Computation = MONOSPACED_TEXT_X_INCREMENT*c;
-        if((*PrintXLine) + Computation >= SCREEN_X - 1)
-        {
-            (*PrintXLine) = MONOSPACED_TEXT_X_START;
-            (*PrintYLine) += MONOSPACED_TEXT_Y_INCREMENT;
-        }
-        else{ (*PrintXLine) += Computation; }
+        bit32 c = RPI2_PrintFloat(Data->E[e], PrintXLine, PrintYLine);
     }
 }
+
 
 #if 0
 inline void Platform_PrintInfo()
@@ -247,6 +257,8 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
         bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
         
         mat4x4 Transform = PerspectiveTransform * RotationAxesAndTranslationToMat4x4({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, IntoScreenValue});
+        
+        PrintFloat(IntoScreenValue, &PrintXLine, &PrintYLine);
         
         bit32 TriangleOnScanline[6]; bit32 s = 0;
         for(bit32 v = 0; v < 3; v++)
@@ -497,7 +509,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     for(;;)
     {
         Platform_Render(0xFF000000, &TemplePlatform, IntoScreenValue);
-        IntoScreenValue += 0.00872664625997164788461845384244; //NOTE: (PI32*2)/720.0f because I like thinking in terms of the unit circle as of late :) Just getting an increment value to slowly move "into" the screen.
+        IntoScreenValue += 0.1f; //NOTE: (PI32*2)/720.0f because I like thinking in terms of the unit circle as of late :) Just getting an increment value to slowly move "into" the screen.
     }
     
     SpaceGameMain(&TemplePlatform);

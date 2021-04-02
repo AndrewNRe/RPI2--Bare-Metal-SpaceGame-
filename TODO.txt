@@ -23,7 +23,7 @@ E: Don't store full sets of vertex / index data for N temple platforms. You shou
 //this is partially done. Still have a bit to go on it though. Mostly just have to rework the entire platform render / player system so game code and such.
 
 
-Currently working on 3/31/21:
+Currently working on 4/2/21:
 Understand why the test triangle isn't being rendered and how to solve it!
 
 -Figure out why the RenderLetterArray routine is producing all error characters! (Should just be a bug with me loading from the font pixels)
