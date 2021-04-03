@@ -243,50 +243,10 @@ GetAsciiValue:
 	mov r2, r4
 	cmp r2, #0
 bgt GetAsciiValue
+	mov r4, #0
+	strb r4, [r8], #1
 pop {r1, fp, r14}
 bx lr
-
-//.globl RenderLetterArray //TODO(Andrew) DELETE THIS OLD ROUTINE!
-//RenderLetterArray: //r0 = address of the byte array, r1 = number of characters to render, r2 = x pos, r3 = y pos
-//	push {r0, fp, r14}
-//	add r1, r1, r0 // r1 = total number of characters to write for easier comparision.
-//	adrl r4, CurrentFrameBuffer
-//	ldr r5,[r4]
-//	adrl r4, WriteFB_Addresses
-//	ldr r4,[r4, r5] //r4 = framebuffer base
-//	mov r8, #SCREEN_X
-//	mul r3, r3, r8 //r3 = number of scanlines for y
-//	add r2, r2, r3
-//	lsl r2, #2 //Go from screen space to "byte space".
-//	add r2, r2, r4 //r2 = Actual framebuffer base.
-//	add r3, r2, #32 //r3 = first scanline end, 8 pixels moved from r2.
-//	add r4, r3, #((SCREEN_X*4)*8) //r4 = end of letter.
-//	RenderLetterLoop:
-//		mov r5, r2
-//		mov r6, r3
-//		ldrb r7, [r0], #1
-//		sub r7, #0x20 //move all values down from their ascii value.
-//		lsl r7, #8 //r7 = amount to offset to get correct pixels.
-//		adrl r8, FontData
-//		add r7, r7, r8 //r7 = Current character's pixels.
-//		DrawLetter:
-//			mov r8, r5 //r8 = scanline write pointer.
-//			DrawScanline:
-//				ldr r9, [r7], #4 //load pixel
-//				str r9, [r8], #4 //store pixel
-//				cmp r8, r6
-//			blt DrawScanline
-//			add r5, #(SCREEN_X*4)
-//			add r6, #(SCREEN_X*4)
-//			cmp r6, r4
-//		blt DrawLetter
-//		add r2, r2, #32 //Move forward for next character.
-//		add r3, r3, #32
-//		add r4, r4, #32
-//		cmp r0, r1
-//	blt RenderLetterLoop
-//	pop {r0, fp, r14}
-//bx lr
 
 .globl RenderLetterArray
 RenderLetterArray: //r0 = address of the string, r1 = x pos address, r2 = y pos address

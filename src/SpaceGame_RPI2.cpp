@@ -81,15 +81,37 @@ inline bit32 FloatingPointToAscii(f32 FloatValue, char* Number)
     {
         Number[c] = DecimalString[i];
     }
+    Number[c] = 0; c++;
     return c;
 }
 
-#define PrintFloat(Data, PrintXLine, PrintYLine) RPI2_PrintFloat((Data), (PrintXLine), (PrintYLine))
-inline internal bit32 RPI2_PrintFloat(f32 Data, bit32* PrintXLine, bit32* PrintYLine)
+enum rpi2_print_type
+{
+    RPI2_Print_Float,
+    RPI2_Print_Integer,
+};
+#define PrintFloat(Data, PrintXLine, PrintYLine) RPI2_Print((Data), 1, (PrintXLine), (PrintYLine), RPI2_Print_Float)
+#define PrintVector(type, Data, PrintXLine, PrintYLine) RPI2_Print((vec4*)(Data), sizeof(type)/sizeof(f32), (PrintXLine), (PrintYLine), RPI2_Print_Float)
+#define PrintInteger(Data, PrintXLine, PrintYLine) RPI2_Print((Data), 1, (PrintXLine), (PrintYLine), RPI2_Print_Integer)
+inline internal bit32 RPI2_Print(void* Data, bit32 Count, bit32* PrintXLine, bit32* PrintYLine, rpi2_print_type Type)
 {
     bit32 Result = 0;
-    char String[128];
-    Result = FloatingPointToAscii(Data, String);
+    char String[64];
+    switch(Type)
+    {
+        case RPI2_Print_Float:
+        {
+            f32* Float = (f32*)Data;
+            for(bit32 f = 0; f < Count; f++)
+            { Result += FloatingPointToAscii(Float[f], String); }
+        }break;
+        case RPI2_Print_Integer:
+        {
+            bit32* Integer = (bit32*)Data;
+            for(bit32 i = 0; i < Count; i++)
+            { Result += IntegerToAscii(String, Integer[i]); }
+        }break;
+    }
     RenderLetterArray(String, PrintXLine, PrintYLine);
     bit32 Computation = MONOSPACED_TEXT_X_INCREMENT*Result;
     if((*PrintXLine) + Computation >= SCREEN_X - 1)
@@ -100,17 +122,6 @@ inline internal bit32 RPI2_PrintFloat(f32 Data, bit32* PrintXLine, bit32* PrintY
     else{ (*PrintXLine) += Computation; }
     return Result;
 }
-
-#define PrintVector(type, Data, PrintXLine, PrintYLine) RPI2_PrintVector(sizeof(type)/sizeof(f32), (vec4*)(Data), (PrintXLine), (PrintYLine)) //NOTE: Can use in game code version, since it's easy to redefine per platform.
-inline internal void RPI2_PrintVector(bit32 Length, vec4* Data, bit32* PrintXLine, bit32* PrintYLine)//NOTE: Since the longest vector is 4, just interpret the N length vector as 4 since you can just print less.
-{//NOTE: This is for speed reasons that i'm making this its own function
-    bit32 Result = 0;
-    for(bit32 e = 0; e < Length; e++)
-    {
-        bit32 c = RPI2_PrintFloat(Data->E[e], PrintXLine, PrintYLine);
-    }
-}
-
 
 #if 0
 inline void Platform_PrintInfo()
@@ -249,27 +260,28 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     vec2 LeftAndRightClipPlane = {0.0f, 1.0f};
     
     {//Draw a test triangle
-        vec3 Triangle[3]; f32 Z = -0.2f;
-        Triangle[0] = {0.5f, 0.9f, Z};
-        Triangle[1] = {0.01f, 0.01f, Z};
-        Triangle[2] = {0.9f, 0.01f, Z};
+        vec3 Triangle[3]; f32 Z = -2.0f;
+        Triangle[0] = {10.0f, 9.0f, Z};
+        Triangle[1] = {5.0f, 0.0f, Z};
+        Triangle[2] = {15.0f, 0.0f, Z};
         
         bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
         
         mat4x4 Transform = PerspectiveTransform * RotationAxesAndTranslationToMat4x4({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, IntoScreenValue});
         
-        PrintFloat(IntoScreenValue, &PrintXLine, &PrintYLine);
+        PrintFloat(&IntoScreenValue, &PrintXLine, &PrintYLine);
         
         bit32 TriangleOnScanline[6]; bit32 s = 0;
         for(bit32 v = 0; v < 3; v++)
         {//Project the triangle //TODO(Andrew) and clip any vertexes that cannot be seen (incorrect winding or if off screen). Also, subdivide the triangle if half of it is offscreen :)
             vec4 ProjectedVertex4 = Transform * vec3tovec4(Triangle[v], 1.0f);
             vec2 ProjectedVertex = {ProjectedVertex4.x / ProjectedVertex4.w, ProjectedVertex4.y / ProjectedVertex4.w};
-            ProjectedVertex = clamp_vec2(BottomAndTopClipPlane, ProjectedVertex, LeftAndRightClipPlane);
+            PrintVector(vec2, &ProjectedVertex, &PrintXLine, &PrintYLine);
+            //ProjectedVertex = clamp_vec2(BottomAndTopClipPlane, ProjectedVertex, LeftAndRightClipPlane);
             PrintVector(vec2, &ProjectedVertex, &PrintXLine, &PrintYLine);
             {//Convert the final vertex into the correct scanline position.
-                TriangleOnScanline[s] = (bit32)(ProjectedVertex.x * (f32)SCREEN_X); 
-                TriangleOnScanline[s+1] = (bit32)(ProjectedVertex.y * (f32)SCREEN_Y); 
+                TriangleOnScanline[s] = (bit32)(ProjectedVertex.x * (f32)SCREEN_X); PrintInteger(&TriangleOnScanline[s], &PrintXLine, &PrintYLine);
+                TriangleOnScanline[s+1] = (bit32)(ProjectedVertex.y * (f32)SCREEN_Y); PrintInteger(&TriangleOnScanline[s+1], &PrintXLine, &PrintYLine); 
                 s+=2;
             }
             
@@ -509,7 +521,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     for(;;)
     {
         Platform_Render(0xFF000000, &TemplePlatform, IntoScreenValue);
-        IntoScreenValue += 0.1f; //NOTE: (PI32*2)/720.0f because I like thinking in terms of the unit circle as of late :) Just getting an increment value to slowly move "into" the screen.
+        IntoScreenValue -= 0.1f; //NOTE: (PI32*2)/720.0f because I like thinking in terms of the unit circle as of late :) Just getting an increment value to slowly move "into" the screen.
     }
     
     SpaceGameMain(&TemplePlatform);
