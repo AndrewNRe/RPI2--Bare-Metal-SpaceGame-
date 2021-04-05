@@ -23,5 +23,5 @@ E: Don't store full sets of vertex / index data for N temple platforms. You shou
 //this is partially done. Still have a bit to go on it though. Mostly just have to rework the entire platform render / player system so game code and such.
 
 
-Currently working on 4/3/21:
+Currently working on 4/5/21:
 -Figure out why the triangle is going up and to the left!

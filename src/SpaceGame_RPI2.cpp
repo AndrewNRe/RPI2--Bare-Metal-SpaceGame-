@@ -90,36 +90,38 @@ enum rpi2_print_type
     RPI2_Print_Float,
     RPI2_Print_Integer,
 };
+
 #define PrintFloat(Data, PrintXLine, PrintYLine) RPI2_Print((Data), 1, (PrintXLine), (PrintYLine), RPI2_Print_Float)
-#define PrintVector(type, Data, PrintXLine, PrintYLine) RPI2_Print((vec4*)(Data), sizeof(type)/sizeof(f32), (PrintXLine), (PrintYLine), RPI2_Print_Float)
+#define PrintVector(type, Data, PrintXLine, PrintYLine) RPI2_Print((Data), sizeof(type)/sizeof(f32), (PrintXLine), (PrintYLine), RPI2_Print_Float)
 #define PrintInteger(Data, PrintXLine, PrintYLine) RPI2_Print((Data), 1, (PrintXLine), (PrintYLine), RPI2_Print_Integer)
 inline internal bit32 RPI2_Print(void* Data, bit32 Count, bit32* PrintXLine, bit32* PrintYLine, rpi2_print_type Type)
 {
     bit32 Result = 0;
     char String[64];
-    switch(Type)
+    for(bit32 c = 0; c < Count; c++)
     {
-        case RPI2_Print_Float:
+        switch(Type)
         {
-            f32* Float = (f32*)Data;
-            for(bit32 f = 0; f < Count; f++)
-            { Result += FloatingPointToAscii(Float[f], String); }
-        }break;
-        case RPI2_Print_Integer:
+            case RPI2_Print_Float:
+            {
+                f32* Float = (f32*)Data;
+                Result += FloatingPointToAscii(Float[c], String);
+            }break;
+            case RPI2_Print_Integer:
+            {
+                bit32* Integer = (bit32*)Data;
+                Result += IntegerToAscii(String, Integer[c]);
+            }break;
+        }
+        RenderLetterArray(String, PrintXLine, PrintYLine);
+        bit32 Computation = MONOSPACED_TEXT_X_INCREMENT*Result;
+        if((*PrintXLine) + Computation >= SCREEN_X - 1)
         {
-            bit32* Integer = (bit32*)Data;
-            for(bit32 i = 0; i < Count; i++)
-            { Result += IntegerToAscii(String, Integer[i]); }
-        }break;
+            (*PrintXLine) = MONOSPACED_TEXT_X_START;
+            (*PrintYLine) += MONOSPACED_TEXT_Y_INCREMENT;
+        }
+        else{ (*PrintXLine) += Computation; }
     }
-    RenderLetterArray(String, PrintXLine, PrintYLine);
-    bit32 Computation = MONOSPACED_TEXT_X_INCREMENT*Result;
-    if((*PrintXLine) + Computation >= SCREEN_X - 1)
-    {
-        (*PrintXLine) = MONOSPACED_TEXT_X_START;
-        (*PrintYLine) += MONOSPACED_TEXT_Y_INCREMENT;
-    }
-    else{ (*PrintXLine) += Computation; }
     return Result;
 }
 
@@ -243,7 +245,6 @@ inline bit32 Platform_GetInput()
     return inputvalue;
 }
 
-#if 1
 inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatform, f32 IntoScreenValue)
 {
     mat4x4 PerspectiveTransform; //TODO(Andrew) Just hardcode this value / have this as a global, as doing this calculation every frame is pointless as all the values this function use never change!
@@ -256,14 +257,14 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     PerspectiveTransform.d[2][0] = 0; PerspectiveTransform.d[2][1] = 0; PerspectiveTransform.d[2][2] = (FarClipPlane+NearClipPlane)/(NearClipPlane-FarClipPlane); PerspectiveTransform.d[2][3] = (2*FarClipPlane*NearClipPlane)/(NearClipPlane-FarClipPlane); //This is how the Z buffer stuff works. The [2][2] value is Z's value being constrained to the -1 to 1 space. However, if you don't have the [2][3] value, you don't get a crucial offset that ensures that the Z value is between the -1 to 1 space. I'm not fully sure why this is, but through testing, that offset is required post division of Z to get 100% accurate Z buffer values.
     PerspectiveTransform.d[3][0] = 0; PerspectiveTransform.d[3][1] = 0; PerspectiveTransform.d[3][2] = -1; PerspectiveTransform.d[3][3] = 0; //This is what the W coordinate will store. I.E the Z value to do the perspective divide later in the opengl pipeline.
     
-    vec2 BottomAndTopClipPlane = {0.0f, 1.0f};
-    vec2 LeftAndRightClipPlane = {0.0f, 1.0f};
+    vec2 BottomAndTopClipPlane = {-1.0f, 1.0f};
+    vec2 LeftAndRightClipPlane = {-1.0f, 1.0f};
     
     {//Draw a test triangle
         vec3 Triangle[3]; f32 Z = -2.0f;
-        Triangle[0] = {10.0f, 9.0f, Z};
-        Triangle[1] = {5.0f, 0.0f, Z};
-        Triangle[2] = {15.0f, 0.0f, Z};
+        Triangle[0] = {0.0f, 5.0f, Z};
+        Triangle[1] = {-5.0f, -5.0f, Z};
+        Triangle[2] = {5.0f, -5.0f, Z};
         
         bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
         
@@ -275,13 +276,15 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
         for(bit32 v = 0; v < 3; v++)
         {//Project the triangle //TODO(Andrew) and clip any vertexes that cannot be seen (incorrect winding or if off screen). Also, subdivide the triangle if half of it is offscreen :)
             vec4 ProjectedVertex4 = Transform * vec3tovec4(Triangle[v], 1.0f);
-            vec2 ProjectedVertex = {ProjectedVertex4.x / ProjectedVertex4.w, ProjectedVertex4.y / ProjectedVertex4.w};
+            vec2 ProjectedVertex;
+            ProjectedVertex.x = ProjectedVertex4.x / ProjectedVertex4.w;
+            ProjectedVertex.y = ProjectedVertex4.y / ProjectedVertex4.w;
             PrintVector(vec2, &ProjectedVertex, &PrintXLine, &PrintYLine);
-            //ProjectedVertex = clamp_vec2(BottomAndTopClipPlane, ProjectedVertex, LeftAndRightClipPlane);
+            ProjectedVertex = clamp_vec2(BottomAndTopClipPlane, ProjectedVertex, LeftAndRightClipPlane);
             PrintVector(vec2, &ProjectedVertex, &PrintXLine, &PrintYLine);
             {//Convert the final vertex into the correct scanline position.
-                TriangleOnScanline[s] = (bit32)(ProjectedVertex.x * (f32)SCREEN_X); PrintInteger(&TriangleOnScanline[s], &PrintXLine, &PrintYLine);
-                TriangleOnScanline[s+1] = (bit32)(ProjectedVertex.y * (f32)SCREEN_Y); PrintInteger(&TriangleOnScanline[s+1], &PrintXLine, &PrintYLine); 
+                TriangleOnScanline[s] = (bit32)(((ProjectedVertex.x/2)+0.5f) * (f32)SCREEN_X); PrintInteger(&TriangleOnScanline[s], &PrintXLine, &PrintYLine);
+                TriangleOnScanline[s+1] = (bit32)(((ProjectedVertex.y/2)+0.5f) * (f32)SCREEN_Y); PrintInteger(&TriangleOnScanline[s+1], &PrintXLine, &PrintYLine); 
                 s+=2;
             }
             
@@ -292,7 +295,8 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     }
     SoftwareFrameBufferSwap(BackBufferColor);
 }
-#else
+
+#if 0
 inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatform)
 {
     bit32 VertexBufferAlloc = sizeof(TemplePlatform->Mesh.Vertex);
