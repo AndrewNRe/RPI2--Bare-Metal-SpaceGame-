@@ -248,17 +248,23 @@ inline bit32 Platform_GetInput()
 inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatform, f32 IntoScreenValue)
 {
     mat4x4 PerspectiveTransform; //TODO(Andrew) Just hardcode this value / have this as a global, as doing this calculation every frame is pointless as all the values this function use never change!
+    f32 BottomClipPlane = -1.0f; f32 TopClipPlane = 1.0f;
+    f32 LeftClipPlane = -1.0f; f32 RightClipPlane = 1.0f;
+    f32 NearClipPlane = 0.1f; f32 FarClipPlane = 10000.0f; 
+    /* Keeping this code to show you how I derive the perspective matrix. I did copy and paste this from my code that is running on directx 12, so that's why I use things related to that api here to describe how the matrix works!
     f32 Width = SCREEN_X; f32 Height = SCREEN_Y; 
     f32 AspectRatio = Height / Width;
     f32 FieldOfViewY = 0.41421346665; //f32 FoV = Radians(45); 1/tan(FoV/2); NOTE: I precalculated this since implementing a tangent function is not currently an immediate interest of mine. TODO(Andrew) One day, make a tangent function to understand tangent better!
-    f32 NearClipPlane = 0.1f; f32 FarClipPlane = 10000.0f; 
     PerspectiveTransform.d[0][0] = FieldOfViewY/AspectRatio; PerspectiveTransform.d[0][1] = 0; PerspectiveTransform.d[0][2] = 0; PerspectiveTransform.d[0][3] = 0; //This is literally, me passing these such that the shader does (nearplane*x), for the y below, (near*y).
     PerspectiveTransform.d[1][0] = 0; PerspectiveTransform.d[1][1] = FieldOfViewY; PerspectiveTransform.d[1][2] = 0; PerspectiveTransform.d[1][3] = 0;//Then, after the "vertex shader" runs, eventually at some point in the pipeline, the W coordinate is used to perform that Z divide that gives the perspective foreshortening!
     PerspectiveTransform.d[2][0] = 0; PerspectiveTransform.d[2][1] = 0; PerspectiveTransform.d[2][2] = (FarClipPlane+NearClipPlane)/(NearClipPlane-FarClipPlane); PerspectiveTransform.d[2][3] = (2*FarClipPlane*NearClipPlane)/(NearClipPlane-FarClipPlane); //This is how the Z buffer stuff works. The [2][2] value is Z's value being constrained to the -1 to 1 space. However, if you don't have the [2][3] value, you don't get a crucial offset that ensures that the Z value is between the -1 to 1 space. I'm not fully sure why this is, but through testing, that offset is required post division of Z to get 100% accurate Z buffer values.
     PerspectiveTransform.d[3][0] = 0; PerspectiveTransform.d[3][1] = 0; PerspectiveTransform.d[3][2] = -1; PerspectiveTransform.d[3][3] = 0; //This is what the W coordinate will store. I.E the Z value to do the perspective divide later in the opengl pipeline.
+    */
     
-    vec2 BottomAndTopClipPlane = {-1.0f, 1.0f};
-    vec2 LeftAndRightClipPlane = {-1.0f, 1.0f};
+    PerspectiveTransform.d[0][0] = 0.31066009998750000077665024996875; PerspectiveTransform.d[0][1] = 0; PerspectiveTransform.d[0][2] = 0; PerspectiveTransform.d[0][3] = 0;
+    PerspectiveTransform.d[1][0] = 0; PerspectiveTransform.d[1][1] = 0.41421346665; PerspectiveTransform.d[1][2] = 0; PerspectiveTransform.d[1][3] = 0;
+    PerspectiveTransform.d[2][0] = 0; PerspectiveTransform.d[2][1] = 0; PerspectiveTransform.d[2][2] = -1.000020000200002000020000200002; PerspectiveTransform.d[2][3] = -0.2000020000200002000020000200002; 
+    PerspectiveTransform.d[3][0] = 0; PerspectiveTransform.d[3][1] = 0; PerspectiveTransform.d[3][2] = -1; PerspectiveTransform.d[3][3] = 0;
     
     {//Draw a test triangle
         vec3 Triangle[3]; f32 Z = -2.0f;
@@ -280,7 +286,8 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
             ProjectedVertex.x = ProjectedVertex4.x / ProjectedVertex4.w;
             ProjectedVertex.y = ProjectedVertex4.y / ProjectedVertex4.w;
             PrintVector(vec2, &ProjectedVertex, &PrintXLine, &PrintYLine);
-            ProjectedVertex = clamp_vec2(BottomAndTopClipPlane, ProjectedVertex, LeftAndRightClipPlane);
+            ProjectedVertex.x = clamp(LeftClipPlane, ProjectedVertex.x, RightClipPlane);
+            ProjectedVertex.y = clamp(BottomClipPlane, ProjectedVertex.y, TopClipPlane);
             PrintVector(vec2, &ProjectedVertex, &PrintXLine, &PrintYLine);
             {//Convert the final vertex into the correct scanline position.
                 TriangleOnScanline[s] = (bit32)(((ProjectedVertex.x/2)+0.5f) * (f32)SCREEN_X); PrintInteger(&TriangleOnScanline[s], &PrintXLine, &PrintYLine);
