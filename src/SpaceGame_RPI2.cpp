@@ -26,6 +26,7 @@ bit32 collisionDEBUG_multiplier = 0;
 #endif
 
 //NOTE: game code includes
+#include <SpaceGame_world.h>
 #include <SpaceGame_utility.cpp>
 #include <SpaceGame_vectormath.cpp>
 #include <SpaceGame_templeplatform.cpp>
@@ -266,40 +267,55 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     PerspectiveTransform.d[2][0] = 0; PerspectiveTransform.d[2][1] = 0; PerspectiveTransform.d[2][2] = -1.000020000200002000020000200002; PerspectiveTransform.d[2][3] = -0.2000020000200002000020000200002; 
     PerspectiveTransform.d[3][0] = 0; PerspectiveTransform.d[3][1] = 0; PerspectiveTransform.d[3][2] = -1; PerspectiveTransform.d[3][3] = 0;
     
-    {//Draw a test triangle
-        vec3 Triangle[3]; f32 Z = -2.0f;
-        Triangle[0] = {0.0f, 5.0f, Z};
-        Triangle[1] = {-5.0f, -5.0f, Z};
-        Triangle[2] = {5.0f, -5.0f, Z};
+    bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
+    render_box* Mesh = &TemplePlatform->Mesh;
+    
+    for(bit32 ti = 0; ti < TemplePlatform->InstanceCount; ti++)
+    {//Draw a the current temple platform instance
+        temple_platform_instance* Current = &TemplePlatform->Instance[ti];
         
-        bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
+        mat4x4 WorldTransform = RotationAxesAndTranslationToMat4x4(Current->Transform);
         
-        mat4x4 Transform = PerspectiveTransform * RotationAxesAndTranslationToMat4x4({0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, IntoScreenValue});
-        
-        PrintFloat(&IntoScreenValue, &PrintXLine, &PrintYLine);
-        
-        bit32 TriangleOnScanline[6]; bit32 s = 0;
-        for(bit32 v = 0; v < 3; v++)
-        {//Project the triangle //TODO(Andrew) and clip any vertexes that cannot be seen (incorrect winding or if off screen). Also, subdivide the triangle if half of it is offscreen :)
-            vec4 ProjectedVertex4 = Transform * vec3tovec4(Triangle[v], 1.0f);
-            vec2 ProjectedVertex;
-            ProjectedVertex.x = ProjectedVertex4.x / ProjectedVertex4.w;
-            ProjectedVertex.y = ProjectedVertex4.y / ProjectedVertex4.w;
-            PrintVector(vec2, &ProjectedVertex, &PrintXLine, &PrintYLine);
-            ProjectedVertex.x = clamp(LeftClipPlane, ProjectedVertex.x, RightClipPlane);
-            ProjectedVertex.y = clamp(BottomClipPlane, ProjectedVertex.y, TopClipPlane);
-            PrintVector(vec2, &ProjectedVertex, &PrintXLine, &PrintYLine);
-            {//Convert the final vertex into the correct scanline position.
-                TriangleOnScanline[s] = (bit32)(((ProjectedVertex.x/2)+0.5f) * (f32)SCREEN_X); PrintInteger(&TriangleOnScanline[s], &PrintXLine, &PrintYLine);
-                TriangleOnScanline[s+1] = (bit32)(((ProjectedVertex.y/2)+0.5f) * (f32)SCREEN_Y); PrintInteger(&TriangleOnScanline[s+1], &PrintXLine, &PrintYLine); 
-                s+=2;
-            }
-            
-        }
-        SoftwareDrawTriangle(TriangleOnScanline[0], TriangleOnScanline[1], TriangleOnScanline[2], TriangleOnScanline[3], TriangleOnScanline[4], TriangleOnScanline[5], 
-                             0xFF0000FF, 0xFF0000FF, 0xFF0000FF);
-        
-    }
+        f32 Height = 0.0f;
+        //for(bit32 b = 0; b < 2; b++, Height = Current->CeilingHeight)
+        {//Draw the two box meshes to make the true platform.
+            for(bit32 i = 0; i < RENDER_BOX_INDEX_COUNT; i+=3)
+            {//Draw the temple platform mesh
+                {//Draw the triangle
+                    vec3 Triangle[3];
+                    bit32 Color = Mesh->Vertex[Mesh->Index[i]].Color;
+                    Triangle[0] = Mesh->Vertex[Mesh->Index[i]].Position;
+                    Triangle[1] = Mesh->Vertex[Mesh->Index[i+1]].Position;
+                    Triangle[2] = Mesh->Vertex[Mesh->Index[i+2]].Position;
+                    
+                    mat4x4 Transform = PerspectiveTransform * WorldTransform;
+                    
+                    bit32 TriangleOnScanline[6]; bit32 s = 0;
+                    for(bit32 v = 0; v < 3; v++)
+                    {//Project the triangle
+                        vec4 ProjectedVertex4 = Transform * vec3tovec4(Triangle[v], 1.0f);
+                        vec2 ProjectedVertex;
+                        ProjectedVertex.x = ProjectedVertex4.x / ProjectedVertex4.w;
+                        ProjectedVertex.y = ProjectedVertex4.y / ProjectedVertex4.w;
+                        //PrintVector(vec2, &ProjectedVertex, &PrintXLine, &PrintYLine);
+                        ProjectedVertex.x = clamp(LeftClipPlane, ProjectedVertex.x, RightClipPlane);
+                        ProjectedVertex.y = clamp(BottomClipPlane, ProjectedVertex.y, TopClipPlane);
+                        //PrintVector(vec2, &ProjectedVertex, &PrintXLine, &PrintYLine);
+                        {//Convert the final vertex into the correct scanline position.
+                            TriangleOnScanline[s] = (bit32)(((ProjectedVertex.x/2)+0.5f) * (f32)SCREEN_X); 
+                            TriangleOnScanline[s+1] = (bit32)(((ProjectedVertex.y/2)+0.5f) * (f32)SCREEN_Y); 
+                            //PrintInteger(&TriangleOnScanline[s], &PrintXLine, &PrintYLine);
+                            //PrintInteger(&TriangleOnScanline[s+1], &PrintXLine, &PrintYLine); 
+                            s+=2;
+                        }
+                        
+                    }
+                    SoftwareDrawTriangle(TriangleOnScanline[0], TriangleOnScanline[1], TriangleOnScanline[2], TriangleOnScanline[3], TriangleOnScanline[4], TriangleOnScanline[5], 
+                                         Color, Color, Color);
+                }//End draw triangle routine
+            }//End draw temple platform mesh routine
+        }//Draw the upper box mesh
+    }//End draw temple platform instance routine
     SoftwareFrameBufferSwap(BackBufferColor);
 }
 
@@ -479,14 +495,15 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         {//Start of setting up the temple platform instances
             TemplePlatform.Instance = RecordPushArray(temple_platform_instance, DESIRED_TEMPLE_PLATFORM_COUNT);
             bit32 p = 0;
-            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0, 1.0f, {0.0f, 0.0f, 0.0f}, {-2.0f, 1.0f, 0.0f}); p++;
-            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0, 1.0f, {0.0f, 0.0f, 2.0f}, {2.0f, -1.0f, 0.0f}); p++;
+            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0, 1.0f, {-2.0f, 1.0f, 0.0f}, {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}}); p++;
+            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0, 1.0f, {2.0f, -1.0f, 0.0f}, {{0.0f, 0.0f, 2.0f}, {0.0f, 0.0f, 0.0f}}); p++;
+            TemplePlatform.InstanceCount = p;
         }//End of setting up the temple platform instances
         
         {//Setup the temple platform's box mesh
             render_box* RenderBox = &TemplePlatform.Mesh;
             {//Setup the vertex data
-                f32 X = 0.9f; f32 Y = 0.4f; f32 Z = 0.9f;
+                f32 X = 5.0f; f32 Y = 5.0f; f32 Z = 5.0f;
                 bit32 v = 0;
                 bit32 TopColor = 0xFF0000FF; bit32 BottomColor = 0xFFFF007F;
                 //Top
