@@ -43,6 +43,12 @@ union vec4
     f32 E[4];
 };
 
+union ivec2
+{
+    struct { bit32 x, y; };
+    bit32 E[2];
+};
+
 //Matricies
 struct mat2x2 { f32 d[2][2]; };
 struct mat3x3 { f32 d[3][3]; };

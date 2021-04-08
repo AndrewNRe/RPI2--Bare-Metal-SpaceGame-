@@ -246,7 +246,26 @@ inline bit32 Platform_GetInput()
     return inputvalue;
 }
 
-inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatform, f32 IntoScreenValue)
+struct triangle
+{
+    union
+    {
+        struct { vec3 A, B, C; };
+        vec3 E[3];
+    };
+};
+
+struct scanline_triangle
+{
+    union
+    {
+        struct { ivec2 A, B, C; };
+        bit32 E[6];
+        bit32 Z; //NOTE: This is just to approximate where the triangle is in Z. This is by no means technically accurate at all to how Z sorting should work from what I understand.
+    };
+};
+
+inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatform, camera* Player, bit32* PrintXLine, bit32* PrintYLine)
 {
     mat4x4 PerspectiveTransform; //TODO(Andrew) Just hardcode this value / have this as a global, as doing this calculation every frame is pointless as all the values this function use never change!
     f32 BottomClipPlane = -1.0f; f32 TopClipPlane = 1.0f;
@@ -267,7 +286,10 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     PerspectiveTransform.d[2][0] = 0; PerspectiveTransform.d[2][1] = 0; PerspectiveTransform.d[2][2] = -1.000020000200002000020000200002; PerspectiveTransform.d[2][3] = -0.2000020000200002000020000200002; 
     PerspectiveTransform.d[3][0] = 0; PerspectiveTransform.d[3][1] = 0; PerspectiveTransform.d[3][2] = -1; PerspectiveTransform.d[3][3] = 0;
     
-    bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
+    
+    mat4x4 PerspectiveCameraTransform = PerspectiveTransform * mat3x3tomat4x4(rotate3x3X(Player->RotatePair.y) * rotate3x3Y(Player->RotatePair.x)) * 
+        TranslationAxesToMat4x4(-Player->OrbitPosition);
+    
     render_box* Mesh = &TemplePlatform->Mesh;
     
     for(bit32 ti = 0; ti < TemplePlatform->InstanceCount; ti++)
@@ -277,44 +299,49 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
         mat4x4 WorldTransform = RotationAxesAndTranslationToMat4x4(Current->Transform);
         
         f32 Height = 0.0f;
+        
         //for(bit32 b = 0; b < 2; b++, Height = Current->CeilingHeight)
         {//Draw the two box meshes to make the true platform.
             for(bit32 i = 0; i < RENDER_BOX_INDEX_COUNT; i+=3)
             {//Draw the temple platform mesh
                 {//Draw the triangle
-                    vec3 Triangle[3];
+                    triangle Triangle;
                     bit32 Color = Mesh->Vertex[Mesh->Index[i]].Color;
-                    Triangle[0] = Mesh->Vertex[Mesh->Index[i]].Position;
-                    Triangle[1] = Mesh->Vertex[Mesh->Index[i+1]].Position;
-                    Triangle[2] = Mesh->Vertex[Mesh->Index[i+2]].Position;
+                    Triangle.E[0] = Mesh->Vertex[Mesh->Index[i]].Position;
+                    Triangle.E[1] = Mesh->Vertex[Mesh->Index[i+1]].Position;
+                    Triangle.E[2] = Mesh->Vertex[Mesh->Index[i+2]].Position;
                     
-                    mat4x4 Transform = PerspectiveTransform * WorldTransform;
+                    mat4x4 Transform = PerspectiveCameraTransform * WorldTransform;
                     
-                    bit32 TriangleOnScanline[6]; bit32 s = 0;
+                    scanline_triangle ScanlineTriangle = {}; bit32 s = 0;
                     for(bit32 v = 0; v < 3; v++)
                     {//Project the triangle
-                        vec4 ProjectedVertex4 = Transform * vec3tovec4(Triangle[v], 1.0f);
+                        vec4 ProjectedVertex4 = Transform * vec3tovec4(Triangle.E[v], 1.0f);
                         vec2 ProjectedVertex;
                         ProjectedVertex.x = ProjectedVertex4.x / ProjectedVertex4.w;
                         ProjectedVertex.y = ProjectedVertex4.y / ProjectedVertex4.w;
-                        //PrintVector(vec2, &ProjectedVertex, &PrintXLine, &PrintYLine);
+                        //PrintVector(vec2, &ProjectedVertex, PrintXLine, PrintYLine);
                         ProjectedVertex.x = clamp(LeftClipPlane, ProjectedVertex.x, RightClipPlane);
                         ProjectedVertex.y = clamp(BottomClipPlane, ProjectedVertex.y, TopClipPlane);
-                        //PrintVector(vec2, &ProjectedVertex, &PrintXLine, &PrintYLine);
+                        //PrintVector(vec2, &ProjectedVertex, PrintXLine, PrintYLine);
                         {//Convert the final vertex into the correct scanline position.
-                            TriangleOnScanline[s] = (bit32)(((ProjectedVertex.x/2)+0.5f) * (f32)SCREEN_X); 
-                            TriangleOnScanline[s+1] = (bit32)(((ProjectedVertex.y/2)+0.5f) * (f32)SCREEN_Y); 
-                            //PrintInteger(&TriangleOnScanline[s], &PrintXLine, &PrintYLine);
-                            //PrintInteger(&TriangleOnScanline[s+1], &PrintXLine, &PrintYLine); 
+                            ScanlineTriangle.E[s] = (bit32)(((ProjectedVertex.x/2)+0.5f) * (f32)SCREEN_X); 
+                            ScanlineTriangle.E[s+1] = (bit32)(((ProjectedVertex.y/2)+0.5f) * (f32)SCREEN_Y); 
+                            //PrintInteger(&TriangleOnScanline[s], PrintXLine, PrintYLine);
+                            //PrintInteger(&TriangleOnScanline[s+1], PrintXLine, PrintYLine); 
                             s+=2;
                         }
                         
                     }
-                    SoftwareDrawTriangle(TriangleOnScanline[0], TriangleOnScanline[1], TriangleOnScanline[2], TriangleOnScanline[3], TriangleOnScanline[4], TriangleOnScanline[5], 
+                    //TODO(Andrew) 4/8/21 INSTEAD OF DRAWING, YOU NEED TO HAVE AN ARRAY THAT FILLS AND THEN SORTS (during or after getting all triangles on scanline, unsure, 
+                    //also need to store Z in the triangle on scanline). After sorting is done, do a final loop on this box's sorted triangles (or all boxes in the scene's triangles would be better
+                    //) and draw everything! (Or omit data that can't be seen instead of calling teh draw routine, which is better).
+                    SoftwareDrawTriangle(ScanlineTriangle.A.x, ScanlineTriangle.A.y, ScanlineTriangle.B.x, ScanlineTriangle.B.y, ScanlineTriangle.C.x, ScanlineTriangle.C.y, 
                                          Color, Color, Color);
                 }//End draw triangle routine
             }//End draw temple platform mesh routine
-        }//Draw the upper box mesh
+            
+        }//Draw the box mesh end routine
     }//End draw temple platform instance routine
     SoftwareFrameBufferSwap(BackBufferColor);
 }
@@ -545,11 +572,13 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         main_lastframeTIME = RPI2_QuerySystemTimerCounter();
     }
     
-    f32 IntoScreenValue = 0.0f;
+    camera Player = {};
     for(;;)
     {
-        Platform_Render(0xFF000000, &TemplePlatform, IntoScreenValue);
-        IntoScreenValue -= 0.1f; //NOTE: (PI32*2)/720.0f because I like thinking in terms of the unit circle as of late :) Just getting an increment value to slowly move "into" the screen.
+        bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
+        PrintFloat(&Player.OrbitPosition.z, &PrintXLine, &PrintYLine);
+        Platform_Render(0xFF000000, &TemplePlatform, &Player, &PrintXLine, &PrintYLine);
+        Player.OrbitPosition.z += 0.1f;
     }
     
     SpaceGameMain(&TemplePlatform);

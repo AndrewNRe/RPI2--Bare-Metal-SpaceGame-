@@ -17,6 +17,26 @@ inline vec4 vec3tovec4(vec3 B, f32 w)
     return Result;
 }
 
+inline mat4x4 mat3x3tomat4x4(mat3x3 m3)
+{
+    mat4x4 Result = {};
+    Result.d[0][0] = m3.d[0][0]; Result.d[0][1] = m3.d[0][1]; Result.d[0][2] = m3.d[0][2]; Result.d[0][3] = 0.0f;
+    Result.d[1][0] = m3.d[1][0]; Result.d[1][1] = m3.d[1][1]; Result.d[1][2] = m3.d[1][2]; Result.d[1][3] = 0.0f;
+    Result.d[2][0] = m3.d[2][0]; Result.d[2][1] = m3.d[2][1]; Result.d[2][2] = m3.d[2][2]; Result.d[2][3] = 0.0f;
+    Result.d[3][0] = 0.0f; Result.d[3][1] = 0.0f; Result.d[3][2] = 0.0f; Result.d[3][3] = 1.0f;
+    return Result;
+}
+
+inline mat4x4 TranslationAxesToMat4x4(vec3 translation)
+{
+    mat4x4 Result = {};
+    Result.d[0][0] = 1.0f; Result.d[0][1] = 0.0f; Result.d[0][2] = 0.0f; Result.d[0][3] = translation.x;
+    Result.d[1][0] = 0.0f; Result.d[1][1] = 1.0f; Result.d[1][2] = 0.0f; Result.d[1][3] = translation.y;
+    Result.d[2][0] = 0.0f; Result.d[2][1] = 0.0f; Result.d[2][2] = 1.0f; Result.d[2][3] = translation.z;
+    Result.d[3][0] = 0.0f; Result.d[3][1] = 0.0f; Result.d[3][2] = 0.0f; Result.d[3][3] = 1.0f;
+    return Result;
+}
+
 inline bool32 operator!=(vec3 A, vec3 B)
 {
     bool32 result = 0;

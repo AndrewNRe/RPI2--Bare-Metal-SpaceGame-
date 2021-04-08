@@ -1,3 +1,11 @@
+struct camera
+{
+    vec3 OrbitPosition;
+    vec2 RotatePair; //NOTE: Only rotates on the X axis, so move the YZ plane, and the Y axis, moving the XZ plane
+};
+
+
+//TODO(Andrew) Rework the entirety of the below code because it's old and not good.
 struct Player
 {
     bit32 manipulationInfo;
