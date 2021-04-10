@@ -34,12 +34,12 @@ REM To understand the boot process, I'd reccomend this blog article: https://the
 
 REM I do two compile passes on the same c file, one for the assembly, and the second for the output that will be linked with the main's output, and the game's output file (.o)!
 REM I couldn't figure out how to generate both in one command, so that's why there's two. If you know how, let me know, please!
-%Cpp_Compiler% -I ..\src\ -march=armv7-a -mfloat-abi=hard -mfpu=neon -nostdlib -mno-thumb-interwork -c ..\RPI2src\sdk.c -o sdk_c.o
-%Cpp_Compiler% -I ..\src\ -march=armv7-a -mfloat-abi=hard -mfpu=neon -nostdlib -mno-thumb-interwork -S ..\RPI2src\sdk.c -o sdk_c.asm
+%Cpp_Compiler% -I ..\src\ -I ..\RPI2src\ -march=armv7-a -mfloat-abi=hard -mfpu=neon -nostdlib -mno-thumb-interwork -c ..\RPI2src\sdk.c -o sdk_c.o
+%Cpp_Compiler% -I ..\src\ -I ..\RPI2src\ -march=armv7-a -mfloat-abi=hard -mfpu=neon -nostdlib -mno-thumb-interwork -S ..\RPI2src\sdk.c -o sdk_c.asm
 
 REM Yet again, the same as above.
-%Cpp_Compiler% -I ..\src -fno-exceptions -march=armv7-a -mfloat-abi=hard -mfpu=neon -finput-charset=UTF-8 -fextended-identifiers -nostdinc++ -nostdlib -std=c++11 -c ..\src\SpaceGame_RPI2.cpp -o SpaceGame.o	
-%Cpp_Compiler%  -I ..\src -fno-exceptions -march=armv7-a -mfloat-abi=hard -mfpu=neon -finput-charset=UTF-8 -fextended-identifiers -nostdinc++ -nostdlib -std=c++11 -S ..\src\SpaceGame_RPI2.cpp -o SpaceGame.asm
+%Cpp_Compiler% -I ..\src -I ..\RPI2src\ -fno-exceptions -march=armv7-a -mfloat-abi=hard -mfpu=neon -finput-charset=UTF-8 -fextended-identifiers -nostdinc++ -nostdlib -std=c++11 -c ..\src\SpaceGame_RPI2.cpp -o SpaceGame.o	
+%Cpp_Compiler%  -I ..\src -I ..\RPI2src\ -fno-exceptions -march=armv7-a -mfloat-abi=hard -mfpu=neon -finput-charset=UTF-8 -fextended-identifiers -nostdinc++ -nostdlib -std=c++11 -S ..\src\SpaceGame_RPI2.cpp -o SpaceGame.asm
 
 %Linker% -nolibc -nostdlib a.o sdk_c.o SpaceGame.o -o kernel7.elf -Map kernel7.map
 REM So the obj copy is interesting. Basically, you're just taking the elf file and formatting it into an img file so the RPI2 will actually run the code since the start.elf file on the usb will look for a kernel.

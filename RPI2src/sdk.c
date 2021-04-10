@@ -9,6 +9,7 @@ learning attempt at seeing what goes into hardware making / what it would be lik
 #define false 0
 #define true 1
 #include "ANR_types.h"
+#include "sdk.h"
 //RPI2 Assembly Routines
 extern void RenderLetterArray(bit8* letters, bit32 numCharToRender, bit32 xStart, bit32 yStart);
 extern bit32 IntegerToAscii(void* writablemem, bit32 integer);
@@ -88,7 +89,6 @@ void SDK_CHECK_IF_INTTERUPT() //TODO(Andrew) rewrite and optimize in assembly?
 }
 
 //NOTE: C RUNTIME FUNCTIONS
-#define size_t unsigned int //NOTE: 32 bit platform!
 void* memset(void* dest, int c, size_t count)
 {
     char* Dest = (char*)dest;

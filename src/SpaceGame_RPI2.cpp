@@ -7,12 +7,10 @@
 #define collisiondebug false
 
 //NOTE: These are technically platform independant functions (except for render letter array and integer to ascii, wrote them in assembly for fun :) ), but are required for the program to function properly so they're included here.
-extern "C" f32 sinf(f32 a);
-extern "C" f32 cosf(f32 a);
+#include <sdk.h>
 extern "C" void RenderLetterArray(char* letters, bit32* xStart, bit32* yStart); //NOTE: xStart and yStart are both modifed in this procedure.
 extern "C" bit32 IntegerToAscii(void* bit8array, bit32 integer); //Return is length of string data wrote.
 #if debug
-extern "C" void SDK_BLINKBOARD(bit32 number_of_flashes);
 #define Assert(Expression) if(!(Expression)) { for(;;){SDK_BLINKBOARD(1);} }
 #else
 #define Assert(Expression) ();
@@ -257,11 +255,12 @@ struct triangle
 
 struct scanline_triangle
 {
+    f32 Z; //NOTE: Rough approximation of where the triangle actually is because I want to go fast and not really care too much as of 4/9/21
+    bit32 Color;
     union
     {
         struct { ivec2 A, B, C; };
         bit32 E[6];
-        bit32 Z; //NOTE: This is just to approximate where the triangle is in Z. This is by no means technically accurate at all to how Z sorting should work from what I understand.
     };
 };
 
@@ -286,12 +285,15 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     PerspectiveTransform.d[2][0] = 0; PerspectiveTransform.d[2][1] = 0; PerspectiveTransform.d[2][2] = -1.000020000200002000020000200002; PerspectiveTransform.d[2][3] = -0.2000020000200002000020000200002; 
     PerspectiveTransform.d[3][0] = 0; PerspectiveTransform.d[3][1] = 0; PerspectiveTransform.d[3][2] = -1; PerspectiveTransform.d[3][3] = 0;
     
-    
     mat4x4 PerspectiveCameraTransform = PerspectiveTransform * mat3x3tomat4x4(rotate3x3X(Player->RotatePair.y) * rotate3x3Y(Player->RotatePair.x)) * 
         TranslationAxesToMat4x4(-Player->OrbitPosition);
     
     render_box* Mesh = &TemplePlatform->Mesh;
     
+    bit32 CurrentScanlineTriangle = 0;
+    bit32 ScanlineTriangleCount = ((RENDER_BOX_INDEX_COUNT/3)*2) * TemplePlatform->InstanceCount;
+    scanline_triangle* SortedTriangleArray = StackPushArray(scanline_triangle, ScanlineTriangleCount);
+    memset(SortedTriangleArray, 0x00, ScanlineTriangleCount*sizeof(scanline_triangle));
     for(bit32 ti = 0; ti < TemplePlatform->InstanceCount; ti++)
     {//Draw a the current temple platform instance
         temple_platform_instance* Current = &TemplePlatform->Instance[ti];
@@ -299,7 +301,6 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
         mat4x4 WorldTransform = RotationAxesAndTranslationToMat4x4(Current->Transform);
         
         f32 Height = 0.0f;
-        
         //for(bit32 b = 0; b < 2; b++, Height = Current->CeilingHeight)
         {//Draw the two box meshes to make the true platform.
             for(bit32 i = 0; i < RENDER_BOX_INDEX_COUNT; i+=3)
@@ -314,35 +315,51 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                     mat4x4 Transform = PerspectiveCameraTransform * WorldTransform;
                     
                     scanline_triangle ScanlineTriangle = {}; bit32 s = 0;
+                    f32 ZValue[3];
                     for(bit32 v = 0; v < 3; v++)
                     {//Project the triangle
                         vec4 ProjectedVertex4 = Transform * vec3tovec4(Triangle.E[v], 1.0f);
                         vec2 ProjectedVertex;
                         ProjectedVertex.x = ProjectedVertex4.x / ProjectedVertex4.w;
                         ProjectedVertex.y = ProjectedVertex4.y / ProjectedVertex4.w;
-                        //PrintVector(vec2, &ProjectedVertex, PrintXLine, PrintYLine);
                         ProjectedVertex.x = clamp(LeftClipPlane, ProjectedVertex.x, RightClipPlane);
                         ProjectedVertex.y = clamp(BottomClipPlane, ProjectedVertex.y, TopClipPlane);
-                        //PrintVector(vec2, &ProjectedVertex, PrintXLine, PrintYLine);
                         {//Convert the final vertex into the correct scanline position.
                             ScanlineTriangle.E[s] = (bit32)(((ProjectedVertex.x/2)+0.5f) * (f32)SCREEN_X); 
                             ScanlineTriangle.E[s+1] = (bit32)(((ProjectedVertex.y/2)+0.5f) * (f32)SCREEN_Y); 
-                            //PrintInteger(&TriangleOnScanline[s], PrintXLine, PrintYLine);
-                            //PrintInteger(&TriangleOnScanline[s+1], PrintXLine, PrintYLine); 
                             s+=2;
                         }
-                        
+                        ScanlineTriangle.Color = Color;
+                        ZValue[v] = ProjectedVertex4.z;
                     }
-                    //TODO(Andrew) 4/8/21 INSTEAD OF DRAWING, YOU NEED TO HAVE AN ARRAY THAT FILLS AND THEN SORTS (during or after getting all triangles on scanline, unsure, 
-                    //also need to store Z in the triangle on scanline). After sorting is done, do a final loop on this box's sorted triangles (or all boxes in the scene's triangles would be better
-                    //) and draw everything! (Or omit data that can't be seen instead of calling teh draw routine, which is better).
-                    SoftwareDrawTriangle(ScanlineTriangle.A.x, ScanlineTriangle.A.y, ScanlineTriangle.B.x, ScanlineTriangle.B.y, ScanlineTriangle.C.x, ScanlineTriangle.C.y, 
-                                         Color, Color, Color);
+                    
+                    ScanlineTriangle.Z = (ZValue[0] + ZValue[1] + ZValue[2]) * .5f;
+                    
+                    for(bit32 s = 0; s < CurrentScanlineTriangle; s++)
+                    {
+                        if(ScanlineTriangle.Z <= SortedTriangleArray[s].Z)
+                        {
+                            scanline_triangle Temp = ScanlineTriangle;
+                            ScanlineTriangle = SortedTriangleArray[s];
+                            SortedTriangleArray[s] = Temp;
+                        }
+                    }
+                    CurrentScanlineTriangle++;
                 }//End draw triangle routine
             }//End draw temple platform mesh routine
-            
         }//Draw the box mesh end routine
     }//End draw temple platform instance routine
+    
+    for(bit32 s = 0; s < CurrentScanlineTriangle; s++)
+    {
+        SoftwareDrawTriangle(SortedTriangleArray[s].A.x, SortedTriangleArray[s].A.y,
+                             SortedTriangleArray[s].B.x, SortedTriangleArray[s].B.y,
+                             SortedTriangleArray[s].C.x, SortedTriangleArray[s].C.y, 
+                             SortedTriangleArray[s].Color, SortedTriangleArray[s].Color, SortedTriangleArray[s].Color);
+    }
+    
+    StackPopArray(scanline_triangle, ScanlineTriangleCount);
+    
     SoftwareFrameBufferSwap(BackBufferColor);
 }
 
