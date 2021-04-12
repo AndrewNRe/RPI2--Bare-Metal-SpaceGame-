@@ -255,13 +255,14 @@ RenderLetterArray: //r0 = address of the string, r1 = x pos address, r2 = y pos 
 	ldr r4,[r3]
 	adrl r3, WriteFB_Addresses
 	ldr r3,[r3, r4] //r3 = framebuffer base
-	ldr r5, [r2]
+	ldr r12, [r2]
 	mov r6, #SCREEN_X
-	mul r5, r5, r6 //r5 = number of scanlines for y
+	mul r12, r12, r6 //r12 = number of scanlines for y
 	ldr r4, [r1]
-	add r4, r4, r5
+	add r4, r4, r12
 	lsl r4, #2 //Go from screen space to "4 byte space"
 	add r4, r4, r3 //r4 = actual framebuffer base.
+	mov r5, r12 //r5 = number of scanlines for y
 	add r5, r4, #BITS_PER_PIXEL //r5 = first scanline end, 8 pixels moved from r2.
 	add r11, r5, #((SCREEN_X*4)*8)
 	RenderLetterLoop:
@@ -292,10 +293,8 @@ RenderLetterArray: //r0 = address of the string, r1 = x pos address, r2 = y pos 
 	RenderLetterLoopEnd:
 	sub r5, r5, r3 //Remove framebuffer base
 	lsr r5, #2 //Go from "4 byte space" to screen space
+	sub r5, r5, r12
 	str r5, [r1]
-	ldr r3, [r2]
-	add r3, #1
-	str r3, [r2] //NOTE: Since this routine currently just renders for one scanline and doesn't try to auto jump if you render text off screen, just go down one! (remember, down is up).
 	pop {r0, fp, r14}
 bx lr
 

@@ -19,4 +19,6 @@ C: Correct GJK to be more correct.
 D: Fix the math of either the perspective projection matrix, and also just the general space math as I know it's gotta be wrong due to rotations rotating about the 
 world origin from what it looks like atm.
 
-4/7/21: Get the platforms rendering properly!
+F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
+
+4/12/21: Get the platforms rendering properly!

@@ -90,14 +90,25 @@ enum rpi2_print_type
     RPI2_Print_Integer,
 };
 
-#define PrintFloat(Data, PrintXLine, PrintYLine) RPI2_Print((Data), 1, (PrintXLine), (PrintYLine), RPI2_Print_Float)
-#define PrintVector(type, Data, PrintXLine, PrintYLine) RPI2_Print((Data), sizeof(type)/sizeof(f32), (PrintXLine), (PrintYLine), RPI2_Print_Float)
-#define PrintInteger(Data, PrintXLine, PrintYLine) RPI2_Print((Data), 1, (PrintXLine), (PrintYLine), RPI2_Print_Integer)
-inline internal bit32 RPI2_Print(void* Data, bit32 Count, bit32* PrintXLine, bit32* PrintYLine, rpi2_print_type Type)
+#define PrintIncrementY(PrintXLine, PrintYLine, Condition) PrintIncrementY_((PrintXLine), (PrintYLine), (Condition))
+inline internal void PrintIncrementY_(bit32* PrintXLine, bit32* PrintYLine, bool32 Condition)
+{
+    if(Condition)
+    {
+        (*PrintXLine) = MONOSPACED_TEXT_X_START;
+        (*PrintYLine) += MONOSPACED_TEXT_Y_INCREMENT;
+    }
+}
+
+#define PrintFloat(Data, PrintXLine, PrintYLine, DoIncrementY) RPI2_Print((Data), 1, (PrintXLine), (PrintYLine), RPI2_Print_Float, (DoIncrementY))
+#define PrintVector(type, Data, PrintXLine, PrintYLine, DoIncrementY) RPI2_Print((Data), sizeof(type)/sizeof(f32), (PrintXLine), (PrintYLine), RPI2_Print_Float, (DoIncrementY))
+#define PrintInteger(Data, PrintXLine, PrintYLine, DoIncrementY) RPI2_Print((Data), 1, (PrintXLine), (PrintYLine), RPI2_Print_Integer, (DoIncrementY))
+internal bit32 RPI2_Print(void* Data, bit32 Count, bit32* PrintXLine, bit32* PrintYLine, rpi2_print_type Type, bool32 DoIncrementY)
 {
     bit32 Result = 0;
     char String[64];
-    for(bit32 c = 0; c < Count; c++)
+    bit32 c = 0;
+    for(; c < Count; c++)
     {
         switch(Type)
         {
@@ -113,118 +124,11 @@ inline internal bit32 RPI2_Print(void* Data, bit32 Count, bit32* PrintXLine, bit
             }break;
         }
         RenderLetterArray(String, PrintXLine, PrintYLine);
-        bit32 Computation = MONOSPACED_TEXT_X_INCREMENT*Result;
-        if((*PrintXLine) + Computation >= SCREEN_X - 1)
-        {
-            (*PrintXLine) = MONOSPACED_TEXT_X_START;
-            (*PrintYLine) += MONOSPACED_TEXT_Y_INCREMENT;
-        }
-        else{ (*PrintXLine) += Computation; }
+        PrintIncrementY(PrintXLine, PrintYLine, (*PrintXLine) >= SCREEN_X - 1);
     }
+    PrintIncrementY(PrintXLine, PrintYLine, DoIncrementY);
     return Result;
 }
-
-#if 0
-inline void Platform_PrintInfo()
-{
-    bit32 xStart = 1; bit32 yStart = 10; bit32 yIncrement = 10;
-    {//print framerate()
-        bit8 m[9];m[0] = 'M'; m[1] = ':'; m[2] = ' '; m[3] = ' '; m[4] = ' '; m[5] = '/'; m[6] = ' '; m[7] = ' '; m[8] = ' ';
-        bit32 truncated = RPI2_QuerySystemTimerCounter() - main_lastframeTIME;
-        bit32 elaspedtime = truncated / 1000;
-        IntegerToAscii(&m[2], elaspedtime);
-        bit32 timeperframe = RPI2_timeperframe / 1000;
-        IntegerToAscii(&m[6], timeperframe);
-        RenderLetterArray(m, sizeof(m), xStart, yStart);
-        yStart += yIncrement;
-    }
-    {//print playerpos()
-        bit8 c[15]; 
-        c[0] = 'X'; c[1] = '+'; c[2] = ' '; c[3] = ' '; c[4] = ' '; 
-        c[5] = 'Y'; c[6] = '+'; c[7] = ' '; c[8] = ' ';  c[9] = ' '; 
-        c[10] = 'Z'; c[11] = '+'; c[12] = ' '; c[13] = ' '; c[14] = ' ';
-        bit32 base = 10;
-        s32 xvalue = player->position.x * base;
-        s32 yvalue = player->position.y * base;
-        s32 zvalue = player->position.z * base;
-        if(xvalue & 0x80000000){c[1] = '-';} if(yvalue & 0x80000000) { c[6] = '-'; } if(zvalue & 0x80000000) { c[11] = '-'; }
-        IntegerToAscii(&c[2], xvalue);
-        IntegerToAscii(&c[7], yvalue);
-        IntegerToAscii(&c[12], zvalue);
-        RenderLetterArray(c, sizeof(c), xStart, yStart);
-        yStart += yIncrement;
-    }
-    {//Print out how many times the player has landed
-        bit8 c[12]; c[0] = 'L'; c[1] ='A'; c[2] ='N';c[3]='D';c[4]='E';c[5]='D';c[6]='=';
-        c[7]=' ';c[8]=' ';c[9]=' ';
-        c[10]=' ';c[11]=' ';//0xFFFF worth of number values, so 32 bits worth of "printable" values. Unlikely player gets to this value, unless they're insane!
-        IntegerToAscii(&c[7], player->numberoftimes_landed);
-        RenderLetterArray(c, sizeof(c), xStart, yStart); yStart += yIncrement;
-    }
-    {//Print what manipulation value the player is on.
-        bit8 c[6]; c[0] = 'M'; c[1] ='='; c[2] =' ';c[3]=' ';c[4]=' ';c[5]=' ';
-        IntegerToAscii(&c[2], player->manipulationInfo);
-        RenderLetterArray(c, sizeof(c), xStart, yStart); yStart += yIncrement;
-    }
-    bit32 centerofscreen = SCREEN_X/2; bit32 Y = SCREEN_Y/2;
-    if(player->manipulationInfo == 1 || player->manipulationInfo == 2)
-    {//print Y value
-        bit8 c[6]; c[0]='Y';c[1]='P';c[2]='O';c[3]='W';c[4]='=';c[5]=' ';
-        bit32 print = player->launchDirection.y * 10;
-        IntegerToAscii(&c[5], print);
-        RenderLetterArray(c, sizeof(c), centerofscreen, Y);
-        Y+=yIncrement;
-        if(player->manipulationInfo == 2)
-        {
-            bit8 c[6]; c[0]='F';c[1]='P';c[2]='O';c[3]='W';c[4]='=';c[5]=' ';
-            bit32 print = (player->launchDirection.z) * 10;
-            IntegerToAscii(&c[5], print);
-            RenderLetterArray(c, sizeof(c), centerofscreen, Y);
-        }
-    }
-#if collisiondebug
-    if(collisionDEBUGpassed)
-    {
-        bit8 c[6]; c[0]= 'P'; c[1] ='A'; c[2] ='S'; c[3]='T';c[4]='='; c[5] =' ';
-        IntegerToAscii(&c[5], collisionDEBUG_multiplier);
-        RenderLetterArray(c, sizeof(c), xStart, yStart); yStart += yIncrement;
-    }
-    else
-    {
-        bit8 c[6]; c[0]= 'F'; c[1] ='A'; c[2] ='L'; c[3]='T';c[4]='='; c[5] =' ';
-        IntegerToAscii(&c[5], collisionDEBUG_multiplier);
-        RenderLetterArray(c, sizeof(c), xStart, yStart); yStart += yIncrement;
-    }
-    {//0
-        bit8 c[6]; c[0]= 'C'; c[1] ='0'; c[2] ='='; c[3]=' ';c[4]=' '; c[5] =' ';
-        IntegerToAscii(&c[3], collisionDEBUG_finalsimplexindicies[0]);
-        RenderLetterArray(c, sizeof(c), xStart, yStart); yStart += yIncrement;
-    }
-    {//1
-        bit8 c[6]; c[0]= 'C'; c[1] ='1'; c[2] ='='; c[3]=' ';c[4]=' '; c[5] =' ';
-        IntegerToAscii(&c[3], collisionDEBUG_finalsimplexindicies[1]);
-        RenderLetterArray(c, sizeof(c), xStart, yStart); yStart += yIncrement;
-    }
-    {//2
-        bit8 c[6]; c[0]= 'C'; c[1] ='2'; c[2] ='='; c[3]=' ';c[4]=' '; c[5] =' ';
-        IntegerToAscii(&c[3], collisionDEBUG_finalsimplexindicies[2]);
-        RenderLetterArray(c, sizeof(c), xStart, yStart); yStart += yIncrement;
-    }
-    {//3
-        bit8 c[6]; c[0]= 'C'; c[1] ='3'; c[2] ='='; c[3]=' ';c[4]=' '; c[5] =' ';
-        IntegerToAscii(&c[3], collisionDEBUG_finalsimplexindicies[3]);
-        RenderLetterArray(c, sizeof(c), xStart, yStart); yStart += yIncrement;
-    }
-    {//reset
-        for(bit32 i = 0; i < sizeof(collisionDEBUG_finalsimplexindicies)/sizeof(bit32); i++)
-        { collisionDEBUG_finalsimplexindicies[i] = 999; }
-        collisionDEBUGpassed = false;
-        collisionDEBUG_currentSBI = 0;
-        collisionDEBUG_multiplier = 0;
-    }
-#endif
-}
-#endif
 
 inline bit32 Platform_MemoryAllocate(bit32 allocationamt)
 {
@@ -257,6 +161,7 @@ struct scanline_triangle
 {
     f32 Z; //NOTE: Rough approximation of where the triangle actually is because I want to go fast and not really care too much as of 4/9/21
     bit32 Color;
+    bit32 TriangleID;
     union
     {
         struct { ivec2 A, B, C; };
@@ -305,6 +210,7 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
         {//Draw the two box meshes to make the true platform.
             for(bit32 i = 0; i < RENDER_BOX_INDEX_COUNT; i+=3)
             {//Draw the temple platform mesh
+                f32 ZValue[3];
                 {//Draw the triangle
                     triangle Triangle;
                     bit32 Color = Mesh->Vertex[Mesh->Index[i]].Color;
@@ -312,10 +218,11 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                     Triangle.E[1] = Mesh->Vertex[Mesh->Index[i+1]].Position;
                     Triangle.E[2] = Mesh->Vertex[Mesh->Index[i+2]].Position;
                     
+                    ZValue[0] = Triangle.E[0].z;
+                    
                     mat4x4 Transform = PerspectiveCameraTransform * WorldTransform;
                     
                     scanline_triangle ScanlineTriangle = {}; bit32 s = 0;
-                    f32 ZValue[3];
                     for(bit32 v = 0; v < 3; v++)
                     {//Project the triangle
                         vec4 ProjectedVertex4 = Transform * vec3tovec4(Triangle.E[v], 1.0f);
@@ -330,10 +237,11 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                             s+=2;
                         }
                         ScanlineTriangle.Color = Color;
-                        ZValue[v] = ProjectedVertex4.z;
                     }
                     
                     ScanlineTriangle.Z = (ZValue[0] + ZValue[1] + ZValue[2]) * .5f;
+                    ScanlineTriangle.TriangleID = CurrentScanlineTriangle;
+                    SortedTriangleArray[CurrentScanlineTriangle] = ScanlineTriangle;
                     
                     for(bit32 s = 0; s < CurrentScanlineTriangle; s++)
                     {
@@ -352,6 +260,8 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     
     for(bit32 s = 0; s < CurrentScanlineTriangle; s++)
     {
+        PrintInteger(&SortedTriangleArray[s].TriangleID, PrintXLine, PrintYLine, false);
+        PrintFloat(&SortedTriangleArray[s].Z, PrintXLine, PrintYLine, true);
         SoftwareDrawTriangle(SortedTriangleArray[s].A.x, SortedTriangleArray[s].A.y,
                              SortedTriangleArray[s].B.x, SortedTriangleArray[s].B.y,
                              SortedTriangleArray[s].C.x, SortedTriangleArray[s].C.y, 
@@ -593,7 +503,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     for(;;)
     {
         bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
-        PrintFloat(&Player.OrbitPosition.z, &PrintXLine, &PrintYLine);
+        PrintFloat(&Player.OrbitPosition.z, &PrintXLine, &PrintYLine, true);
         Platform_Render(0xFF000000, &TemplePlatform, &Player, &PrintXLine, &PrintYLine);
         Player.OrbitPosition.z += 0.1f;
     }
