@@ -169,6 +169,14 @@ struct scanline_triangle
     };
 };
 
+void ScanlineTriangleTransfer(scanline_triangle* A, scanline_triangle* B)
+{
+    scanline_triangle Temp = (*A);
+    (*A) = (*B);
+    (*B) = Temp;
+}
+
+
 inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatform, camera* Player, bit32* PrintXLine, bit32* PrintYLine)
 {
     mat4x4 PerspectiveTransform; //TODO(Andrew) Just hardcode this value / have this as a global, as doing this calculation every frame is pointless as all the values this function use never change!
@@ -188,7 +196,7 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     PerspectiveTransform.d[0][0] = 0.31066009998750000077665024996875; PerspectiveTransform.d[0][1] = 0; PerspectiveTransform.d[0][2] = 0; PerspectiveTransform.d[0][3] = 0;
     PerspectiveTransform.d[1][0] = 0; PerspectiveTransform.d[1][1] = 0.41421346665; PerspectiveTransform.d[1][2] = 0; PerspectiveTransform.d[1][3] = 0;
     PerspectiveTransform.d[2][0] = 0; PerspectiveTransform.d[2][1] = 0; PerspectiveTransform.d[2][2] = -1.000020000200002000020000200002; PerspectiveTransform.d[2][3] = -0.2000020000200002000020000200002; 
-    PerspectiveTransform.d[3][0] = 0; PerspectiveTransform.d[3][1] = 0; PerspectiveTransform.d[3][2] = -1; PerspectiveTransform.d[3][3] = 0;
+    PerspectiveTransform.d[3][0] = 0; PerspectiveTransform.d[3][1] = 0; PerspectiveTransform.d[3][2] = 1; PerspectiveTransform.d[3][3] = 0;
     
     mat4x4 PerspectiveCameraTransform = PerspectiveTransform * mat3x3tomat4x4(rotate3x3X(Player->RotatePair.y) * rotate3x3Y(Player->RotatePair.x)) * 
         TranslationAxesToMat4x4(-Player->OrbitPosition);
@@ -198,16 +206,31 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     bit32 CurrentScanlineTriangle = 0;
     bit32 ScanlineTriangleCount = ((RENDER_BOX_INDEX_COUNT/3)*2) * TemplePlatform->InstanceCount;
     scanline_triangle* SortedTriangleArray = StackPushArray(scanline_triangle, ScanlineTriangleCount);
-    memset(SortedTriangleArray, 0x00, ScanlineTriangleCount*sizeof(scanline_triangle));
+    for(bit32 t = 0; t < ScanlineTriangleCount; t++)
+    {
+        SortedTriangleArray[t].Z = FarClipPlane;
+        SortedTriangleArray[t].Color = 0;
+        SortedTriangleArray[t].TriangleID = 0;
+        SortedTriangleArray[t].E[0] = 0;
+        SortedTriangleArray[t].E[1] = 0;
+        SortedTriangleArray[t].E[2] = 0;
+        SortedTriangleArray[t].E[3] = 0;
+        SortedTriangleArray[t].E[4] = 0;
+        SortedTriangleArray[t].E[5] = 0;
+    }
     for(bit32 ti = 0; ti < TemplePlatform->InstanceCount; ti++)
     {//Draw a the current temple platform instance
         temple_platform_instance* Current = &TemplePlatform->Instance[ti];
         
-        mat4x4 WorldTransform = RotationAxesAndTranslationToMat4x4(Current->Transform);
         
         f32 Height = 0.0f;
-        //for(bit32 b = 0; b < 2; b++, Height = Current->CeilingHeight)
+        for(bit32 b = 0; b < 2; b++, Height = Current->CeilingHeight)
         {//Draw the two box meshes to make the true platform.
+            
+            world_transform FinalTransform = Current->Transform;
+            FinalTransform.Translation.y += Height;
+            mat4x4 WorldTransform = RotationAxesAndTranslationToMat4x4(FinalTransform);
+            
             for(bit32 i = 0; i < RENDER_BOX_INDEX_COUNT; i+=3)
             {//Draw the temple platform mesh
                 f32 ZValue[3];
@@ -219,6 +242,8 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                     Triangle.E[2] = Mesh->Vertex[Mesh->Index[i+2]].Position;
                     
                     ZValue[0] = Triangle.E[0].z;
+                    ZValue[1] = Triangle.E[1].z;
+                    ZValue[2] = Triangle.E[2].z;
                     
                     mat4x4 Transform = PerspectiveCameraTransform * WorldTransform;
                     
@@ -237,21 +262,20 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                             s+=2;
                         }
                         ScanlineTriangle.Color = Color;
+                        ZValue[v] = ProjectedVertex4.z;
                     }
                     
                     ScanlineTriangle.Z = (ZValue[0] + ZValue[1] + ZValue[2]) * .5f;
                     ScanlineTriangle.TriangleID = CurrentScanlineTriangle;
-                    SortedTriangleArray[CurrentScanlineTriangle] = ScanlineTriangle;
-                    
-                    for(bit32 s = 0; s < CurrentScanlineTriangle; s++)
+                    ScanlineTriangleTransfer(&SortedTriangleArray[0], &ScanlineTriangle);
+                    for(bit32 s = 0; s < CurrentScanlineTriangle+1; s++)
                     {
-                        if(ScanlineTriangle.Z <= SortedTriangleArray[s].Z)
+                        if(ScanlineTriangle.Z < SortedTriangleArray[s].Z)
                         {
-                            scanline_triangle Temp = ScanlineTriangle;
-                            ScanlineTriangle = SortedTriangleArray[s];
-                            SortedTriangleArray[s] = Temp;
+                            ScanlineTriangleTransfer(&SortedTriangleArray[s], &ScanlineTriangle);
                         }
                     }
+                    
                     CurrentScanlineTriangle++;
                 }//End draw triangle routine
             }//End draw temple platform mesh routine
@@ -260,153 +284,22 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     
     for(bit32 s = 0; s < CurrentScanlineTriangle; s++)
     {
-        PrintInteger(&SortedTriangleArray[s].TriangleID, PrintXLine, PrintYLine, false);
-        PrintFloat(&SortedTriangleArray[s].Z, PrintXLine, PrintYLine, true);
-        SoftwareDrawTriangle(SortedTriangleArray[s].A.x, SortedTriangleArray[s].A.y,
-                             SortedTriangleArray[s].B.x, SortedTriangleArray[s].B.y,
-                             SortedTriangleArray[s].C.x, SortedTriangleArray[s].C.y, 
-                             SortedTriangleArray[s].Color, SortedTriangleArray[s].Color, SortedTriangleArray[s].Color);
+        
+        if(SortedTriangleArray[s].Z > NearClipPlane && SortedTriangleArray[s].Z < FarClipPlane)
+        {
+            PrintInteger(&SortedTriangleArray[s].TriangleID, PrintXLine, PrintYLine, false);
+            PrintFloat(&SortedTriangleArray[s].Z, PrintXLine, PrintYLine, true);
+            SoftwareDrawTriangle(SortedTriangleArray[s].A.x, SortedTriangleArray[s].A.y,
+                                 SortedTriangleArray[s].B.x, SortedTriangleArray[s].B.y,
+                                 SortedTriangleArray[s].C.x, SortedTriangleArray[s].C.y, 
+                                 SortedTriangleArray[s].Color, SortedTriangleArray[s].Color, SortedTriangleArray[s].Color);
+        }
     }
     
     StackPopArray(scanline_triangle, ScanlineTriangleCount);
     
     SoftwareFrameBufferSwap(BackBufferColor);
 }
-
-#if 0
-inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatform)
-{
-    bit32 VertexBufferAlloc = sizeof(TemplePlatform->Mesh.Vertex);
-    vertex* Vertex = (vertex*)StackPush(VertexBufferAlloc);
-    bit32 NumberOfPlatforms = DESIRED_TEMPLE_PLATFORM_COUNT;
-    {//Get points relative to the camera, for index sorting.
-        vec3 CameraPos; CameraPos.x = player->position.x; CameraPos.y = player->position.y; CameraPos.z = player->position.z;
-        if(player->manipulationInfo == 1 || player->manipulationInfo == 2) //Add "camera" offset for visual observation.
-        { vec3 movedlaunch = player->rotation * player->launchDirection;  CameraPos.y += movedlaunch.y; CameraPos.z += movedlaunch.z; }
-        for(bit32 b = 0, i = 0; b < NumberOfPlatforms; b++)
-        {
-            for(bit32 v = 0; v < sizeof(TemplePlatform->Mesh.Vertex) / sizeof(vertex); v++)
-            {
-                Vertex[i].Position = player->rotation * (TemplePlatform->Mesh.Vertex[v].Position - CameraPos);
-                Vertex[i].Position.y = -Vertex[i].Position.y;
-                Vertex[i].Color = TemplePlatform->Mesh.Vertex[v].Color;
-            }
-        }
-    }
-    
-    bit32 IndexCountPerTemplePlatform = sizeof(TemplePlatform->Mesh.Index)/sizeof(bit16);
-    bit32 IndexBufferAlloc = sizeof(TemplePlatform->Mesh.Index) * NumberOfPlatforms;
-    bit16* Index = (bit16*)StackPush(IndexBufferAlloc);
-    {//Re-sort index buffer based on proper Z values.
-        bit16* TempIndex = (bit16*)StackPush(IndexBufferAlloc);
-        for(bit32 b = 0, i = 0, offset = 0; b < NumberOfPlatforms; b++)
-        { //Get all index buffers.
-            for(bit32 l = 0; l < IndexCountPerTemplePlatform; l++, i++)
-            { TempIndex[i] = TemplePlatform->Mesh.Index[l] + offset; }
-            offset += IndexCountPerTemplePlatform;
-        }
-        for(bit32 i = 0; i < IndexBufferAlloc/2;)
-        {
-            f32 furthest = -2147483647; bit32 li = 0;
-            for(bit32 z = 0; z < IndexBufferAlloc/2;)
-            {
-                if(TempIndex[z] != 0xFFFF)
-                {
-                    f32 A = Vertex[TempIndex[z]].Position.z;
-                    f32 B = Vertex[TempIndex[z+1]].Position.z;
-                    f32 C = Vertex[TempIndex[z+2]].Position.z;
-                    f32 average = (A+B+C)/3;
-                    if(average > furthest){ furthest = average; li = z; }
-                }
-                z+=3;
-            }
-            Index[i] = TempIndex[li]; TempIndex[li] = 0xFFFF;
-            Index[i+1] = TempIndex[li+1]; TempIndex[li+1] = 0xFFFF;
-            Index[i+2] = TempIndex[li+2]; TempIndex[li+2] = 0xFFFF;
-            i += 3;
-        }
-        StackPop(IndexBufferAlloc);
-    }
-    f32 nearclipplane = 0.1f; //Nothing can behind this
-    f32 farclipplane = 6.0f; //Nothing can be in front of this.
-    f32 leftclipplane = -1.0f; f32 rightclipplane = 1.0f;
-    f32 bottomclipplane = -1.0f; f32 topclipplane = 1.0f;
-#if printrenderedtrianglevalues
-    bit32 ycount = 30; bit32 xcount = 1;
-#endif
-    for(bit32 i = 0; i < IndexBufferAlloc/2;)
-    {
-        vec3 sA = Vertex[Index[i]].Position; bit32 Ac = Vertex[Index[i]].Color; i++;
-        vec3 sB = Vertex[Index[i]].Position; bit32 Bc = Vertex[Index[i]].Color; i++;
-        vec3 sC = Vertex[Index[i]].Position; bit32 Cc = Vertex[Index[i]].Color; i++;
-        bool32 Avalid = (sA.z > nearclipplane && sA.z < farclipplane && sA.x > leftclipplane && sA.x < rightclipplane && sA.y > bottomclipplane && sA.y < topclipplane);
-        bool32 Bvalid = (sB.z > nearclipplane && sB.z < farclipplane && sB.x > leftclipplane && sB.x < rightclipplane && sB.y > bottomclipplane && sB.y < topclipplane);
-        bool32 Cvalid = (sC.z > nearclipplane && sC.z < farclipplane && sC.x > leftclipplane && sC.x < rightclipplane && sC.y > bottomclipplane && sC.y < topclipplane);
-        if(Avalid || Bvalid || Cvalid) //Clip triangles that don't have a single valid vertex.
-        { 
-            vec2 A; vec2 B; vec2 C;
-            {//Perspective Project
-                if(sA.z <= nearclipplane){sA.z = nearclipplane;} if(sB.z <= nearclipplane){sB.z = nearclipplane;} if(sC.z <= nearclipplane){sC.z = nearclipplane;}
-                f32 CameraPos = .3f; //Where the "camera or window" actually is, relative to the origin (eye).
-                A.x = (CameraPos * sA.x) / sA.z; 
-                A.y = (CameraPos * sA.y) / sA.z;
-                B.x = (CameraPos * sB.x) / sB.z; 
-                B.y = (CameraPos * sB.y) / sB.z; 
-                C.x = (CameraPos * sC.x) / sC.z;
-                C.y = (CameraPos * sC.y) / sC.z;
-#if printrenderedtrianglevalues
-                RPI2_printvec2(xcount, ycount, Index[i-3], A, 1000);  ycount += 10; if(ycount >= SCREEN_Y){xcount += 160; ycount = 30;}
-                RPI2_printvec2(xcount, ycount, Index[i-2], B, 1000);  ycount += 10; if(ycount >= SCREEN_Y){xcount += 160; ycount = 30;}
-                RPI2_printvec2(xcount, ycount, Index[i-1], C, 1000);  ycount += 20; if(ycount >= SCREEN_Y){xcount += 160; ycount = 30;}
-#endif
-            }
-            {//Rewind ccw to cw if any ccw triangles exist.
-                vec2 AB = B - A; vec2 AC = C - A;
-                f32 wo = (AB.x*AC.y - AB.y*AC.x);
-                if(wo < 0) { vec2 X = B; B = C; C = X; }
-            }
-            {//Clamp to screen
-                f32 min = -1.0f; f32 max = 1.0f;
-                if(!(A.x > leftclipplane && A.x < rightclipplane && A.y > bottomclipplane && A.y < topclipplane))
-                {
-                    A.x = clamp(min, A.x, max);
-                    A.y = clamp(min, A.y, max);
-                }
-                if(!(B.x > leftclipplane && B.x < rightclipplane && B.y > bottomclipplane && B.y < topclipplane))
-                {
-                    B.x = clamp(min, B.x, max);
-                    B.y = clamp(min, B.y, max);
-                }
-                if(!(C.x > leftclipplane && C.x < rightclipplane && C.y > bottomclipplane && C.y < topclipplane))
-                {
-                    C.x = clamp(min, C.x, max);
-                    C.y = clamp(min, C.y, max);
-                }
-            }
-            {//Draw to RPI2 framebuffer
-                //NOTE: For reading the assembly to understand where data is in the registers-
-                bit32 Ax = ((A.x/2)+0.5f) * SCREEN_X; //Goes into r0
-                bit32 Ay = ((A.y/2)+0.5f) * SCREEN_Y; //r1
-                bit32 Bx = ((B.x/2)+0.5f) * SCREEN_X; //r2
-                bit32 By = ((B.y/2)+0.5f) * SCREEN_Y; //r3
-                bit32 Cx = ((C.x/2)+0.5f) * SCREEN_X; //r4
-                bit32 Cy = ((C.y/2)+0.5f) * SCREEN_Y; //r5
-                SoftwareDrawTriangle(Ax, Ay, Bx, By, Cx, Cy, Ac, Bc, Cc);
-            }
-        }
-    }
-    
-    //NOTE OLD TEST CODE FROM 3/27/21
-    bit32 HX = SCREEN_X / 2;
-    bit32 QX = SCREEN_X / 4;
-    SoftwareDrawTriangle(HX, SCREEN_Y - 1, HX - QX, 1, HX + QX, 1, 0xFF0000FF, 0xFF0000FF, 0xFF0000FF);
-    //NOTE: Test code end
-    
-    StackPop(IndexBufferAlloc);
-    StackPop(VertexBufferAlloc);
-    SoftwareFrameBufferSwap(BackBufferColor); //Swap front with back buffer!
-}
-#endif
 
 inline void Platform_Sleep(bit64 &thread_start)
 {
@@ -449,8 +342,8 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         {//Start of setting up the temple platform instances
             TemplePlatform.Instance = RecordPushArray(temple_platform_instance, DESIRED_TEMPLE_PLATFORM_COUNT);
             bit32 p = 0;
-            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0, 1.0f, {-2.0f, 1.0f, 0.0f}, {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}}); p++;
-            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0, 1.0f, {2.0f, -1.0f, 0.0f}, {{0.0f, 0.0f, 2.0f}, {0.0f, 0.0f, 0.0f}}); p++;
+            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0, 20.0f, {-2.0f, 1.0f, 0.0f}, {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}}); p++;
+            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0, 20.0f, {2.0f, -1.0f, 0.0f}, {{0.0f, 0.0f, 2.0f}, {0.0f, 0.0f, 0.0f}}); p++;
             TemplePlatform.InstanceCount = p;
         }//End of setting up the temple platform instances
         
@@ -500,6 +393,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     }
     
     camera Player = {};
+    Player.OrbitPosition ={0.0f, 0.0f, 15.0f};
     for(;;)
     {
         bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;

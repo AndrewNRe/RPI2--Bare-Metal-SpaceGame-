@@ -21,4 +21,4 @@ world origin from what it looks like atm.
 
 F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
 
-4/12/21: Get the platforms rendering properly!
+4/14/21: Get the platforms rendering properly!
