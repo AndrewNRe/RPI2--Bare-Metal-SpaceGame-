@@ -16,9 +16,6 @@ C: Correct GJK to be more correct.
 -Refer to Haunt code if this is me doing this implement.
 -If someone else is doing this, the video I used to understand GJK was Casey Muratori's video: https://www.youtube.com/watch?v=Qupqu1xe7Io
 
-D: Fix the math of either the perspective projection matrix, and also just the general space math as I know it's gotta be wrong due to rotations rotating about the 
-world origin from what it looks like atm.
-
 F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
 
-4/14/21: Get the platforms rendering properly!
+4/15/21 - could fix Z sort to be more accurate, but I kinda want to move onto collision / gameplay stuff for a bit again.

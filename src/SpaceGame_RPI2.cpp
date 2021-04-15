@@ -350,7 +350,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         {//Setup the temple platform's box mesh
             render_box* RenderBox = &TemplePlatform.Mesh;
             {//Setup the vertex data
-                f32 X = 5.0f; f32 Y = 5.0f; f32 Z = 5.0f;
+                f32 X = 25.0f; f32 Y = 5.0f; f32 Z = 25.0f;
                 bit32 v = 0;
                 bit32 TopColor = 0xFF0000FF; bit32 BottomColor = 0xFFFF007F;
                 //Top
@@ -383,7 +383,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
                 RenderBox->Index[i] = 0; RenderBox->Index[i+1] = 3; RenderBox->Index[i+2] = 7; i += 3;
                 //Bottom
                 RenderBox->Index[i] = 5; RenderBox->Index[i+1] = 4; RenderBox->Index[i+2] = 6; i += 3;
-                RenderBox->Index[i] = 4; RenderBox->Index[i+1] = 7; RenderBox->Index[i+2] = 0; i += 3;
+                RenderBox->Index[i] = 4; RenderBox->Index[i+1] = 7; RenderBox->Index[i+2] = 6; i += 3;
             }//End of setting up the index buffer
         }//End of setting up the box mesh
     }//End of setting up the temple platform(s)
@@ -393,7 +393,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     }
     
     camera Player = {};
-    Player.OrbitPosition ={0.0f, 0.0f, 15.0f};
+    Player.OrbitPosition ={0.0f, 0.0f, 35.0f};
     for(;;)
     {
         bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
