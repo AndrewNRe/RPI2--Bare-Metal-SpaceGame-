@@ -485,14 +485,6 @@ inline f32 clamp(f32 min, f32 value, f32 max)
     return result;
 }
 
-inline vec2 clamp_vec2(vec2 Min, vec2 Value, vec2 Max)
-{
-    vec2 Result;
-    Result.x = clamp(Min.x, Value.x, Max.x);
-    Result.y = clamp(Min.y, Value.y, Max.y);
-    return Result;
-}
-
 inline mat3x3 RotationMatrix(vec3 RotationAxes)
 {
     mat3x3 Result;

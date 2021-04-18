@@ -5,6 +5,11 @@ struct camera
 };
 
 
+struct game_player
+{
+    world_transform Transform;
+};
+
 //TODO(Andrew) Rework the entirety of the below code because it's old and not good.
 struct Player
 {

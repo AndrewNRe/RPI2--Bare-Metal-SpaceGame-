@@ -1,11 +1,11 @@
-bool32 gameisrunning = true; //NOTE: global: game is running.
-bit64 main_lastframeTIME = 0; //NOTE global: main thread's last frame time.
+global_variable bool32 IsRunning = true; //NOTE: global: game is running.
 
+bit64 main_lastframeTIME = 0; //NOTE global: main thread's last frame time.
 inline void SpaceGameMain(temple_platform* TemplePlatform)
 {
-    bit32 BackBufferColor = 0xFF000000;
+    
     f32 gravity = .01f;
-    for(;gameisrunning;)
+    for(;IsRunning;)
     {
         if(player->position.y < -1.0f)
         {//If player falls
