@@ -18,5 +18,8 @@ C: Correct GJK to be more correct.
 
 F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
 
-4/18/21 - Am not rendering today sadly. I started to rewrite the render routine to do the clipping after you project the triangle but before you convert the tri position
-to the scanline position.
+4/19/21 - I need more time since I ran out already to really sit down and print out the vectors to solve the current Z bug. Bottomline is that here's the current suspects.
+Candidates for the incorrect draw-
+Could be the newly added check Z first and clamp every Z before projection code (kinda likely)
+Could still be the code post triangle bound test.
+Could be the barycentric coordinates for the weighted Z being the deciding factor in what triangle is drawn on top of another (highly unlikely)
