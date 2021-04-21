@@ -186,9 +186,11 @@ void ScanlineTriangleTransfer(scanline_triangle* A, scanline_triangle* B)
 LeftClipPlane, RightClipPlane, \
 BottomClipPlane, TopClipPlane, \
 NearClipPlane, FarClipPlane)\
-(((Vector).x > (LeftClipPlane) && (Vector).x < (RightClipPlane)) && \
+(\
+((Vector).x > (LeftClipPlane) && (Vector).x < (RightClipPlane)) && \
 ((Vector).y > (BottomClipPlane) && (Vector).y < (TopClipPlane)) && \
-((Vector).z > (NearClipPlane) && (Vector).z < (FarClipPlane)))
+((Vector).z > (NearClipPlane) && (Vector).z < (FarClipPlane))\
+)
 
 #define ZTest(Z, NearClipPlane, FarClipPlane) ((Z) > (NearClipPlane) && (Z) < (FarClipPlane))
 
@@ -200,7 +202,7 @@ vec3 ClampToPlanes(vec3 Vector,
     vec3 Result = {};
     Result.x = clamp(LeftClipPlane, Vector.x, RightClipPlane);
     Result.y = clamp(BottomClipPlane, Vector.y, TopClipPlane);
-    Result.z = clamp(NearClipPlane, Vector.z, FarClipPlane);
+    //Result.z = clamp(NearClipPlane, Vector.z, FarClipPlane);
     return Result;
 }
 
@@ -266,54 +268,48 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                     StartTriangle.E[1] = Mesh->Vertex[Mesh->Index[i+1]].Position;
                     StartTriangle.E[2] = Mesh->Vertex[Mesh->Index[i+2]].Position;
                     
-                    if(ZTest(StartTriangle.A.z, NearClipPlane, FarClipPlane) ||
-                       ZTest(StartTriangle.B.z, NearClipPlane, FarClipPlane) || 
-                       ZTest(StartTriangle.C.z, NearClipPlane, FarClipPlane))
+                    mat4x4 Transform = PerspectiveCameraTransform * WorldTransform;
+                    
+                    projected_triangle ProjectedTriangle = {};
+                    bit32 NumberOfVertexesInTriangle = 3;
+                    for(bit32 v = 0; v < NumberOfVertexesInTriangle; v++)
                     {
-                        mat4x4 Transform = PerspectiveCameraTransform * WorldTransform;
-                        
-                        projected_triangle ProjectedTriangle = {};
-                        bit32 NumberOfVertexesInTriangle = 3;
-                        for(bit32 v = 0; v < NumberOfVertexesInTriangle; v++)
+                        vec4 ProjectedVertex4 = Transform * vec3tovec4(StartTriangle.E[v], 1.0f);
+                        ProjectedTriangle.Triangle.E[v].x = ProjectedVertex4.x / ProjectedVertex4.w;
+                        ProjectedTriangle.Triangle.E[v].y = ProjectedVertex4.y / ProjectedVertex4.w;
+                        ProjectedTriangle.Triangle.E[v].z = ProjectedVertex4.z;
+                    }
+                    ProjectedTriangle.Color = Color;
+                    
+                    if(TriangleBoundTest(ProjectedTriangle.Triangle.A, LeftClipPlane, RightClipPlane, BottomClipPlane, TopClipPlane, NearClipPlane, FarClipPlane) ||
+                       TriangleBoundTest(ProjectedTriangle.Triangle.B, LeftClipPlane, RightClipPlane, BottomClipPlane, TopClipPlane, NearClipPlane, FarClipPlane) ||
+                       TriangleBoundTest(ProjectedTriangle.Triangle.C, LeftClipPlane, RightClipPlane, BottomClipPlane, TopClipPlane, NearClipPlane, FarClipPlane))
+                    {
+                        scanline_triangle ScanlineTriangle = {};
+                        ScanlineTriangle.Color = ProjectedTriangle.Color;
+                        for(bit32 v = 0, s = 0; v < NumberOfVertexesInTriangle; v++, s+=2)
                         {
-                            StartTriangle.E[v].z = clamp(NearClipPlane, StartTriangle.E[v].z, FarClipPlane);
-                            vec4 ProjectedVertex4 = Transform * vec3tovec4(StartTriangle.E[v], 1.0f);
-                            ProjectedTriangle.Triangle.E[v].x = ProjectedVertex4.x / ProjectedVertex4.w;
-                            ProjectedTriangle.Triangle.E[v].y = ProjectedVertex4.y / ProjectedVertex4.w;
-                            ProjectedTriangle.Triangle.E[v].z = ProjectedVertex4.z;
+                            ProjectedTriangle.Triangle.E[v] = 
+                                ClampToPlanes(ProjectedTriangle.Triangle.E[v], LeftClipPlane, RightClipPlane, BottomClipPlane, TopClipPlane, NearClipPlane, FarClipPlane);
+                            
+                            {//Convert the final vertex into the correct scanline position.
+                                ScanlineTriangle.E[s] = (bit32)(((ProjectedTriangle.Triangle.E[v].x/2)+0.5f) * (f32)SCREEN_X); 
+                                ScanlineTriangle.E[s+1] = (bit32)(((ProjectedTriangle.Triangle.E[v].y/2)+0.5f) * (f32)SCREEN_Y); 
+                            }
                         }
-                        ProjectedTriangle.Color = Color;
                         
-                        if(TriangleBoundTest(ProjectedTriangle.Triangle.A, LeftClipPlane, RightClipPlane, BottomClipPlane, TopClipPlane, NearClipPlane, FarClipPlane) ||
-                           TriangleBoundTest(ProjectedTriangle.Triangle.B, LeftClipPlane, RightClipPlane, BottomClipPlane, TopClipPlane, NearClipPlane, FarClipPlane) ||
-                           TriangleBoundTest(ProjectedTriangle.Triangle.C, LeftClipPlane, RightClipPlane, BottomClipPlane, TopClipPlane, NearClipPlane, FarClipPlane))
+                        ScanlineTriangle.Z = (ProjectedTriangle.Triangle.A.z + ProjectedTriangle.Triangle.B.z + ProjectedTriangle.Triangle.C.z) * .5f;
+                        ScanlineTriangle.TriangleID = CurrentScanlineTriangle;
+                        ScanlineTriangleTransfer(&SortedTriangleArray[0], &ScanlineTriangle);
+                        for(bit32 s = 0; s < CurrentScanlineTriangle+1; s++)
                         {
-                            scanline_triangle ScanlineTriangle = {};
-                            ScanlineTriangle.Color = ProjectedTriangle.Color;
-                            for(bit32 v = 0, s = 0; v < NumberOfVertexesInTriangle; v++, s+=2)
+                            if(ScanlineTriangle.Z < SortedTriangleArray[s].Z)
                             {
-                                ProjectedTriangle.Triangle.E[v] = 
-                                    ClampToPlanes(ProjectedTriangle.Triangle.E[v], LeftClipPlane, RightClipPlane, BottomClipPlane, TopClipPlane, NearClipPlane, FarClipPlane);
-                                
-                                {//Convert the final vertex into the correct scanline position.
-                                    ScanlineTriangle.E[s] = (bit32)(((ProjectedTriangle.Triangle.E[v].x/2)+0.5f) * (f32)SCREEN_X); 
-                                    ScanlineTriangle.E[s+1] = (bit32)(((ProjectedTriangle.Triangle.E[v].y/2)+0.5f) * (f32)SCREEN_Y); 
-                                }
+                                ScanlineTriangleTransfer(&SortedTriangleArray[s], &ScanlineTriangle);
                             }
-                            
-                            ScanlineTriangle.Z = (ProjectedTriangle.Triangle.A.z + ProjectedTriangle.Triangle.B.z + ProjectedTriangle.Triangle.C.z) * .5f;
-                            ScanlineTriangle.TriangleID = CurrentScanlineTriangle;
-                            ScanlineTriangleTransfer(&SortedTriangleArray[0], &ScanlineTriangle);
-                            for(bit32 s = 0; s < CurrentScanlineTriangle+1; s++)
-                            {
-                                if(ScanlineTriangle.Z < SortedTriangleArray[s].Z)
-                                {
-                                    ScanlineTriangleTransfer(&SortedTriangleArray[s], &ScanlineTriangle);
-                                }
-                            }
-                            
-                            CurrentScanlineTriangle++;
                         }
+                        
+                        CurrentScanlineTriangle++;
                     }
                     
                 }//End draw triangle routine
