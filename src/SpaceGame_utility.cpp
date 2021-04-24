@@ -1,6 +1,7 @@
 #define Kilobytes(Value) ((Value)*1024LL)
 #define PI32 3.14159265359f
 #define Radians(Degrees) (Degrees * (PI32/180))
+#define Degrees(Radians) (Radians * (180.0f/PI32))
 
 #define framerate 15
 

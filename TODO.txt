@@ -18,16 +18,8 @@ C: Correct GJK to be more correct.
 
 F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
 
-4/21/21 -
-
-Ok so here's what i've found out now.
-The renderer just needs to do the clipping 100% and proper. The clipping only has to be done on the triangle as you're technically 2d at this point. The Z coordinate
-has absolutely no relevance after you pass being within the near and far clip plane of Z.
-Furthermore, that Z test is only for sorting / passing the inital, "if between near and far" test. 
-The Z value is just converted from the -z (because right handed coordinate system) to a positive Z once you do the projection matrix (do the math to see this).
-So overall, Z just becomes irrelevant after you do the inital projection matrix math as far as I can tell.
+4/24/21 -
+This build has some testing stuff added and also has a much more correct version of clipping going on.
+The real problem is that if two vertexes of the tri are -Z and one crosses and becomes +Z, you get the inaccurate render! NEED WAY TO FIX THIS!!!!
 
 TODO Clipping. Just try the Sutherland–Hodgman algorithm on this!
-After, it should all just work tbh.
-Also, need to swap the z's value on the w row to -1 and fix the render since it's mirror otherwise as far as I can tell. Does this have something to do with the fact
-that the actual pixel fill, fills clockwise instead of counter clockwise???? I don't know how that'd be that relevant here, but I need to investigate that.

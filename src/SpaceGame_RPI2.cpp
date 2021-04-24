@@ -192,8 +192,6 @@ NearClipPlane, FarClipPlane)\
 ((Vector).z > (NearClipPlane) && (Vector).z < (FarClipPlane))\
 )
 
-#define ZTest(Z, NearClipPlane, FarClipPlane) ((Z) > (NearClipPlane) && (Z) < (FarClipPlane))
-
 vec3 ClampToPlanes(vec3 Vector,
                    f32 LeftClipPlane, f32 RightClipPlane,
                    f32 BottomClipPlane, f32 TopClipPlane,
@@ -202,32 +200,24 @@ vec3 ClampToPlanes(vec3 Vector,
     vec3 Result = {};
     Result.x = clamp(LeftClipPlane, Vector.x, RightClipPlane);
     Result.y = clamp(BottomClipPlane, Vector.y, TopClipPlane);
-    //Result.z = clamp(NearClipPlane, Vector.z, FarClipPlane);
+    Result.z = Vector.z;
+    if(Result.z <= NearClipPlane){ Result.z = NearClipPlane; }
+    else if(Result.z > FarClipPlane) { Result.z = FarClipPlane; }
     return Result;
 }
 
+//TODO(Andrew) TESTING!!! DELETE LATER
+global_variable bool32 testr = true;
+#define TEST 0
+//TODO(Andrew) TESTING!!! DELETE LATER END DELETE
+
 inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatform, camera* Camera, bit32* PrintXLine, bit32* PrintYLine)
 {
-    mat4x4 PerspectiveTransform; //TODO(Andrew) Just hardcode this value / have this as a global, as doing this calculation every frame is pointless as all the values this function use never change!
     f32 BottomClipPlane = -1.0f; f32 TopClipPlane = 1.0f;
     f32 LeftClipPlane = -1.0f; f32 RightClipPlane = 1.0f;
     f32 NearClipPlane = 0.1f; f32 FarClipPlane = 10000.0f; 
-    /* Keeping this code to show you how I derive the perspective matrix. I did copy and paste this from my code that is running on directx 12, so that's why I use things related to that api here to describe how the matrix works!
-    f32 Width = SCREEN_X; f32 Height = SCREEN_Y; 
-    f32 AspectRatio = Height / Width;
-    f32 FieldOfViewY = 0.41421346665; //f32 FoV = Radians(45); 1/tan(FoV/2); NOTE: I precalculated this since implementing a tangent function is not currently an immediate interest of mine. TODO(Andrew) One day, make a tangent function to understand tangent better!
-    PerspectiveTransform.d[0][0] = FieldOfViewY/AspectRatio; PerspectiveTransform.d[0][1] = 0; PerspectiveTransform.d[0][2] = 0; PerspectiveTransform.d[0][3] = 0; //This is literally, me passing these such that the shader does (nearplane*x), for the y below, (near*y).
-    PerspectiveTransform.d[1][0] = 0; PerspectiveTransform.d[1][1] = FieldOfViewY; PerspectiveTransform.d[1][2] = 0; PerspectiveTransform.d[1][3] = 0;//Then, after the "vertex shader" runs, eventually at some point in the pipeline, the W coordinate is used to perform that Z divide that gives the perspective foreshortening!
-    PerspectiveTransform.d[2][0] = 0; PerspectiveTransform.d[2][1] = 0; PerspectiveTransform.d[2][2] = (FarClipPlane+NearClipPlane)/(NearClipPlane-FarClipPlane); PerspectiveTransform.d[2][3] = (2*FarClipPlane*NearClipPlane)/(NearClipPlane-FarClipPlane); //This is how the Z buffer stuff works. The [2][2] value is Z's value being constrained to the -1 to 1 space. However, if you don't have the [2][3] value, you don't get a crucial offset that ensures that the Z value is between the -1 to 1 space. I'm not fully sure why this is, but through testing, that offset is required post division of Z to get 100% accurate Z buffer values.
-    PerspectiveTransform.d[3][0] = 0; PerspectiveTransform.d[3][1] = 0; PerspectiveTransform.d[3][2] = -1; PerspectiveTransform.d[3][3] = 0; //This is what the W coordinate will store. I.E the Z value to do the perspective divide later in the opengl pipeline.
-    */
     
-    PerspectiveTransform.d[0][0] = 0.31066009998750000077665024996875; PerspectiveTransform.d[0][1] = 0; PerspectiveTransform.d[0][2] = 0; PerspectiveTransform.d[0][3] = 0;
-    PerspectiveTransform.d[1][0] = 0; PerspectiveTransform.d[1][1] = 0.41421346665; PerspectiveTransform.d[1][2] = 0; PerspectiveTransform.d[1][3] = 0;
-    PerspectiveTransform.d[2][0] = 0; PerspectiveTransform.d[2][1] = 0; PerspectiveTransform.d[2][2] = -1.000020000200002000020000200002; PerspectiveTransform.d[2][3] = -0.2000020000200002000020000200002; 
-    PerspectiveTransform.d[3][0] = 0; PerspectiveTransform.d[3][1] = 0; PerspectiveTransform.d[3][2] = 1; PerspectiveTransform.d[3][3] = 0;
-    
-    mat4x4 PerspectiveCameraTransform = PerspectiveTransform * mat3x3tomat4x4(rotate3x3X(Camera->RotatePair.y) * rotate3x3Y(Camera->RotatePair.x)) * 
+    mat4x4 CameraTransform = mat3x3tomat4x4(rotate3x3X(Camera->RotatePair.y) * rotate3x3Y(Camera->RotatePair.x)) * 
         TranslationAxesToMat4x4(-Camera->OrbitPosition);
     
     render_box* Mesh = &TemplePlatform->Mesh;
@@ -268,18 +258,39 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                     StartTriangle.E[1] = Mesh->Vertex[Mesh->Index[i+1]].Position;
                     StartTriangle.E[2] = Mesh->Vertex[Mesh->Index[i+2]].Position;
                     
-                    mat4x4 Transform = PerspectiveCameraTransform * WorldTransform;
+                    mat4x4 Transform = CameraTransform * WorldTransform;
                     
                     projected_triangle ProjectedTriangle = {};
                     bit32 NumberOfVertexesInTriangle = 3;
+                    f32 FocalPoint = 0.3f;
+                    f32 Sign = 1.0f;
+                    f32 ClosestZ = -FarClipPlane;
                     for(bit32 v = 0; v < NumberOfVertexesInTriangle; v++)
                     {
-                        vec4 ProjectedVertex4 = Transform * vec3tovec4(StartTriangle.E[v], 1.0f);
-                        ProjectedTriangle.Triangle.E[v].x = ProjectedVertex4.x / ProjectedVertex4.w;
-                        ProjectedTriangle.Triangle.E[v].y = ProjectedVertex4.y / ProjectedVertex4.w;
-                        ProjectedTriangle.Triangle.E[v].z = ProjectedVertex4.z;
+                        vec4 Vertex4 = Transform * vec3tovec4(StartTriangle.E[v], 1.0f);
+                        f32 Z = Vertex4.z;
+                        if(Z >= 0.0f) { Z = -Z; }
+                        ProjectedTriangle.Triangle.E[v].x = (FocalPoint * Vertex4.x) / Z;
+                        ProjectedTriangle.Triangle.E[v].y = (FocalPoint * Vertex4.y) / Z;
+                        ProjectedTriangle.Triangle.E[v].z = -Vertex4.z;
                     }
                     ProjectedTriangle.Color = Color;
+                    
+#if 0
+                    {//Rewind the triangle if the winding is incorrect.
+                        vec2 A = {ProjectedTriangle.Triangle.A.x, ProjectedTriangle.Triangle.A.y};
+                        vec2 B = {ProjectedTriangle.Triangle.B.x, ProjectedTriangle.Triangle.B.y};
+                        vec2 C = {ProjectedTriangle.Triangle.C.x, ProjectedTriangle.Triangle.C.y};
+                        vec2 AB = B - A; vec2 AC = C - A;
+                        f32 wo = (AB.x*AC.y - AB.y*AC.x);
+                        if(wo < 0)
+                        {
+                            vec3 X = ProjectedTriangle.Triangle.B;
+                            ProjectedTriangle.Triangle.B = ProjectedTriangle.Triangle.C;
+                            ProjectedTriangle.Triangle.C = X;
+                        }
+                    }
+#endif
                     
                     if(TriangleBoundTest(ProjectedTriangle.Triangle.A, LeftClipPlane, RightClipPlane, BottomClipPlane, TopClipPlane, NearClipPlane, FarClipPlane) ||
                        TriangleBoundTest(ProjectedTriangle.Triangle.B, LeftClipPlane, RightClipPlane, BottomClipPlane, TopClipPlane, NearClipPlane, FarClipPlane) ||
@@ -289,15 +300,52 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                         ScanlineTriangle.Color = ProjectedTriangle.Color;
                         for(bit32 v = 0, s = 0; v < NumberOfVertexesInTriangle; v++, s+=2)
                         {
+#if TEST
+                            if(testr)
+                            {
+                                PrintFloat(&ProjectedTriangle.Triangle.E[v].x, PrintXLine, PrintYLine, false);
+                                PrintFloat(&ProjectedTriangle.Triangle.E[v].y, PrintXLine, PrintYLine, false);
+                                PrintFloat(&ProjectedTriangle.Triangle.E[v].z, PrintXLine, PrintYLine, true);
+                            }
+                            if(ProjectedTriangle.Triangle.E[v].x < LeftClipPlane) { ProjectedTriangle.Triangle.E[v].x = LeftClipPlane; }
+                            else if(ProjectedTriangle.Triangle.E[v].x > RightClipPlane) { ProjectedTriangle.Triangle.E[v].x = RightClipPlane; }
+                            if(ProjectedTriangle.Triangle.E[v].y < BottomClipPlane) { ProjectedTriangle.Triangle.E[v].y = BottomClipPlane; }
+                            else if(ProjectedTriangle.Triangle.E[v].y > TopClipPlane){ ProjectedTriangle.Triangle.E[v].y = TopClipPlane; }
+                            if(ProjectedTriangle.Triangle.E[v].z <= NearClipPlane) { ProjectedTriangle.Triangle.E[v].z = NearClipPlane; }
+                            else if(ProjectedTriangle.Triangle.E[v].z > FarClipPlane) { ProjectedTriangle.Triangle.E[v].z = FarClipPlane; }
+                            if(testr)
+                            {
+                                PrintFloat(&ProjectedTriangle.Triangle.E[v].x, PrintXLine, PrintYLine, false);
+                                PrintFloat(&ProjectedTriangle.Triangle.E[v].y, PrintXLine, PrintYLine, false);
+                                PrintFloat(&ProjectedTriangle.Triangle.E[v].z, PrintXLine, PrintYLine, true);
+                            }
+#else
                             ProjectedTriangle.Triangle.E[v] = 
-                                ClampToPlanes(ProjectedTriangle.Triangle.E[v], LeftClipPlane, RightClipPlane, BottomClipPlane, TopClipPlane, NearClipPlane, FarClipPlane);
+                                ClampToPlanes(ProjectedTriangle.Triangle.E[v], 
+                                              LeftClipPlane, RightClipPlane, 
+                                              BottomClipPlane, TopClipPlane, 
+                                              NearClipPlane, FarClipPlane);
+#endif
                             
                             {//Convert the final vertex into the correct scanline position.
                                 ScanlineTriangle.E[s] = (bit32)(((ProjectedTriangle.Triangle.E[v].x/2)+0.5f) * (f32)SCREEN_X); 
                                 ScanlineTriangle.E[s+1] = (bit32)(((ProjectedTriangle.Triangle.E[v].y/2)+0.5f) * (f32)SCREEN_Y); 
                             }
+#if TEST
+                            if(testr)
+                            {
+                                PrintInteger(&ScanlineTriangle.E[s], PrintXLine, PrintYLine, false);
+                                PrintInteger(&ScanlineTriangle.E[s+1], PrintXLine, PrintYLine, true);
+                            }
+#endif
                         }
-                        
+#if TEST
+                        if(testr)
+                        {
+                            SDK_BLINKBOARD(2);
+                            testr = false;
+                        }
+#endif
                         ScanlineTriangle.Z = (ProjectedTriangle.Triangle.A.z + ProjectedTriangle.Triangle.B.z + ProjectedTriangle.Triangle.C.z) * .5f;
                         ScanlineTriangle.TriangleID = CurrentScanlineTriangle;
                         ScanlineTriangleTransfer(&SortedTriangleArray[0], &ScanlineTriangle);
@@ -317,6 +365,8 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
         }//Draw the box mesh end routine
     }//End draw temple platform instance routine
     
+    //#if !defined(TEST)
+#if 1
     for(bit32 s = 0; s < CurrentScanlineTriangle; s++)
     {
         SoftwareDrawTriangle(SortedTriangleArray[s].A.x, SortedTriangleArray[s].A.y,
@@ -324,6 +374,7 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                              SortedTriangleArray[s].C.x, SortedTriangleArray[s].C.y, 
                              SortedTriangleArray[s].Color, SortedTriangleArray[s].Color, SortedTriangleArray[s].Color);
     }
+#endif
     
     StackPopArray(scanline_triangle, ScanlineTriangleCount);
     
@@ -395,6 +446,9 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             }//End of setting up the vertex data
             {//Setup the index buffer
                 bit32 i = 0;
+                //Front
+                RenderBox->Index[i] = 4; RenderBox->Index[i+1] = 0; RenderBox->Index[i+2] = 7; i += 3;
+                RenderBox->Index[i] = 0; RenderBox->Index[i+1] = 3; RenderBox->Index[i+2] = 7; i += 3;
                 //Top
                 RenderBox->Index[i] = 0; RenderBox->Index[i+1] = 1; RenderBox->Index[i+2] = 3; i += 3;
                 RenderBox->Index[i] = 1; RenderBox->Index[i+1] = 2; RenderBox->Index[i+2] = 3; i += 3;
@@ -407,9 +461,6 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
                 //Left
                 RenderBox->Index[i] = 7; RenderBox->Index[i+1] = 3; RenderBox->Index[i+2] = 6; i += 3;
                 RenderBox->Index[i] = 3; RenderBox->Index[i+1] = 2; RenderBox->Index[i+2] = 6; i += 3;
-                //Front
-                RenderBox->Index[i] = 4; RenderBox->Index[i+1] = 0; RenderBox->Index[i+2] = 7; i += 3;
-                RenderBox->Index[i] = 0; RenderBox->Index[i+1] = 3; RenderBox->Index[i+2] = 7; i += 3;
                 //Bottom
                 RenderBox->Index[i] = 5; RenderBox->Index[i+1] = 4; RenderBox->Index[i+2] = 6; i += 3;
                 RenderBox->Index[i] = 4; RenderBox->Index[i+1] = 7; RenderBox->Index[i+2] = 6; i += 3;
@@ -425,6 +476,9 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     game_player CurrentPlayer;
     CurrentPlayer.Transform.Translation = {0.0f, 0.0f, 45.0f};
     CurrentPlayer.Transform.RotationAxes = {0.0f, 0.0f, 0.0f};
+#if TEST
+    CurrentPlayer.Transform.RotationAxes.y = Radians(38.0f);
+#endif
     for(;;)
     {
         bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
@@ -437,8 +491,10 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         Camera.RotatePair.x = CurrentPlayer.Transform.RotationAxes.y;
         Camera.RotatePair.y = CurrentPlayer.Transform.RotationAxes.x;
         PrintFloat(&CurrentPlayer.Transform.Translation.z, &PrintXLine, &PrintYLine, true);
-        PrintFloat(&CurrentPlayer.Transform.RotationAxes.y, &PrintXLine, &PrintYLine, true);
+        f32 InDegrees = Degrees(CurrentPlayer.Transform.RotationAxes.y);
+        PrintFloat(&InDegrees, &PrintXLine, &PrintYLine, true);
         Platform_Render(0xFF000000, &TemplePlatform, &Camera, &PrintXLine, &PrintYLine);
+        testr = true;
     }
     
     SpaceGameMain(&TemplePlatform);
