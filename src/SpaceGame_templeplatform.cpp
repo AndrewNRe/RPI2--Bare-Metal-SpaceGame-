@@ -1,9 +1,3 @@
-struct vertex
-{
-    vec3 Position;
-    bit32 Color;
-};
-
 #define RENDER_BOX_INDEX_COUNT 36
 struct render_box
 {

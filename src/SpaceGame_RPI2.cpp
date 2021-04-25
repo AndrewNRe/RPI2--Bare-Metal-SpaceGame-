@@ -1,4 +1,8 @@
 #define RPI2 1
+#ifdef __cplusplus
+#define NULL nullptr
+#endif
+
 #include <ANR_types.h>
 
 #define debug 1 //NOTE: Debug switch to enable various debug procedures. (0 = off, <=1 = on)
@@ -24,15 +28,16 @@ bit32 collisionDEBUG_multiplier = 0;
 #endif
 
 //NOTE: game code includes
-#include <SpaceGame_world.h>
 #include <SpaceGame_utility.cpp>
+#include <SpaceGame_Memory.h>
+#include <SpaceGame_world.h>
+#include <SpaceGame_Graphics.h>
+#include <SpaceGame_Graphics.cpp>
 #include <SpaceGame_vectormath.cpp>
 #include <SpaceGame_templeplatform.cpp>
 #include <SpaceGame_platform.cpp>
-#include <SpaceGame_memory.cpp>
 #include <SpaceGame_collision.cpp>
 #include <SpaceGame_player.cpp>
-#include <SpaceGame_main.cpp>
 
 //NOTE: assembly routines
 extern "C" bit32 QuerySnesController();
@@ -130,12 +135,12 @@ internal bit32 RPI2_Print(void* Data, bit32 Count, bit32* PrintXLine, bit32* Pri
     return Result;
 }
 
-inline bit32 Platform_MemoryAllocate(bit32 allocationamt)
+inline bit8* Platform_MemoryAllocate(bit32 AllocationAmt)
 {
-    bit32 amountallocated = 0;
-    bit32 address = RPI2_alloc(allocationamt, amountallocated);
-    if(amountallocated == 0){Assert(0);}
-    return address;
+    bit32 AmountAllocated = 0;
+    bit8* Address = (bit8*)RPI2_alloc(AllocationAmt, AmountAllocated);
+    if(AmountAllocated == 0){Assert(0);}
+    return Address;
 }
 
 bit32 getinputFRAMEDELAY = 6;
@@ -148,95 +153,18 @@ inline bit32 Platform_GetInput()
     return inputvalue;
 }
 
-struct triangle
+
+inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatform, memory_block* Block, camera* Camera, bit32* PrintXLine, bit32* PrintYLine)
 {
-    union
-    {
-        struct { vec3 A, B, C; };
-        vec3 E[3];
-    };
-};
-
-struct projected_triangle
-{
-    triangle Triangle;
-    bit32 Color;
-};
-
-struct scanline_triangle
-{
-    f32 Z; //NOTE: Rough approximation of where the triangle actually is because I want to go fast and not really care too much as of 4/9/21
-    bit32 Color;
-    bit32 TriangleID;
-    union
-    {
-        struct { ivec2 A, B, C; };
-        bit32 E[6];
-    };
-};
-
-void ScanlineTriangleTransfer(scanline_triangle* A, scanline_triangle* B)
-{
-    scanline_triangle Temp = (*A);
-    (*A) = (*B);
-    (*B) = Temp;
-}
-
-#define TriangleBoundTest(Vector, \
-LeftClipPlane, RightClipPlane, \
-BottomClipPlane, TopClipPlane, \
-NearClipPlane, FarClipPlane)\
-(\
-((Vector).x > (LeftClipPlane) && (Vector).x < (RightClipPlane)) && \
-((Vector).y > (BottomClipPlane) && (Vector).y < (TopClipPlane)) && \
-((Vector).z > (NearClipPlane) && (Vector).z < (FarClipPlane))\
-)
-
-vec3 ClampToPlanes(vec3 Vector,
-                   f32 LeftClipPlane, f32 RightClipPlane,
-                   f32 BottomClipPlane, f32 TopClipPlane,
-                   f32 NearClipPlane, f32 FarClipPlane)
-{
-    vec3 Result = {};
-    Result.x = clamp(LeftClipPlane, Vector.x, RightClipPlane);
-    Result.y = clamp(BottomClipPlane, Vector.y, TopClipPlane);
-    Result.z = Vector.z;
-    if(Result.z <= NearClipPlane){ Result.z = NearClipPlane; }
-    else if(Result.z > FarClipPlane) { Result.z = FarClipPlane; }
-    return Result;
-}
-
-//TODO(Andrew) TESTING!!! DELETE LATER
-global_variable bool32 testr = true;
-#define TEST 0
-//TODO(Andrew) TESTING!!! DELETE LATER END DELETE
-
-inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatform, camera* Camera, bit32* PrintXLine, bit32* PrintYLine)
-{
-    f32 BottomClipPlane = -1.0f; f32 TopClipPlane = 1.0f;
-    f32 LeftClipPlane = -1.0f; f32 RightClipPlane = 1.0f;
-    f32 NearClipPlane = 0.1f; f32 FarClipPlane = 10000.0f; 
+    f32 BottomClipPlane = -SCREEN_Y; f32 TopClipPlane = SCREEN_Y;
+    f32 LeftClipPlane = -SCREEN_X; f32 RightClipPlane = SCREEN_X;
+    f32 NearClipPlane = 0.1f; f32 FarClipPlane = 100.0f; 
     
     mat4x4 CameraTransform = mat3x3tomat4x4(rotate3x3X(Camera->RotatePair.y) * rotate3x3Y(Camera->RotatePair.x)) * 
         TranslationAxesToMat4x4(-Camera->OrbitPosition);
     
     render_box* Mesh = &TemplePlatform->Mesh;
     
-    bit32 CurrentScanlineTriangle = 0;
-    bit32 ScanlineTriangleCount = ((RENDER_BOX_INDEX_COUNT/3)*2) * TemplePlatform->InstanceCount;
-    scanline_triangle* SortedTriangleArray = StackPushArray(scanline_triangle, ScanlineTriangleCount);
-    for(bit32 t = 0; t < ScanlineTriangleCount; t++)
-    {
-        SortedTriangleArray[t].Z = FarClipPlane;
-        SortedTriangleArray[t].Color = 0;
-        SortedTriangleArray[t].TriangleID = 0;
-        SortedTriangleArray[t].E[0] = 0;
-        SortedTriangleArray[t].E[1] = 0;
-        SortedTriangleArray[t].E[2] = 0;
-        SortedTriangleArray[t].E[3] = 0;
-        SortedTriangleArray[t].E[4] = 0;
-        SortedTriangleArray[t].E[5] = 0;
-    }
     for(bit32 ti = 0; ti < TemplePlatform->InstanceCount; ti++)
     {//Draw a the current temple platform instance
         temple_platform_instance* Current = &TemplePlatform->Instance[ti];
@@ -249,124 +177,53 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
             FinalTransform.Translation.y += Height;
             mat4x4 WorldTransform = RotationAxesAndTranslationToMat4x4(FinalTransform);
             
+            bit32 TriangleStart = Block->Used;
             for(bit32 i = 0; i < RENDER_BOX_INDEX_COUNT; i+=3)
-            {//Draw the temple platform mesh
-                {//Draw the triangle
-                    triangle StartTriangle;
-                    bit32 Color = Mesh->Vertex[Mesh->Index[i]].Color;
-                    StartTriangle.E[0] = Mesh->Vertex[Mesh->Index[i]].Position;
-                    StartTriangle.E[1] = Mesh->Vertex[Mesh->Index[i+1]].Position;
-                    StartTriangle.E[2] = Mesh->Vertex[Mesh->Index[i+2]].Position;
+            {//Check triangle and generate N triangles if some are not inside some clip planes.
+                triangle* Triangle = PushStruct(Block, triangle, MemoryFlag_NoAlign);
+                bit32 Color = Mesh->Vertex[Mesh->Index[i]].Color;
+                Triangle->E[0] = Mesh->Vertex[Mesh->Index[i]];
+                Triangle->E[1] = Mesh->Vertex[Mesh->Index[i+1]];
+                Triangle->E[2] = Mesh->Vertex[Mesh->Index[i+2]];
+                
+                mat4x4 Transform = CameraTransform * WorldTransform;
+                
+                for(bit32 v = 0; v < NUMBER_OF_VERTEXES_IN_TRIANGLE; v++)
+                {
+                    vec3 Position = vec4tovec3(Transform * vec3tovec4(Triangle->E[v].Position, 1.0f));
                     
-                    mat4x4 Transform = CameraTransform * WorldTransform;
+                    bit32 Xin = Inside1DLineTest(Position.x, LeftClipPlane, RightClipPlane);
+                    bit32 Yin = Inside1DLineTest(Position.y, BottomClipPlane, TopClipPlane);
+                    bit32 Zin = Inside1DLineTest(Position.z, NearClipPlane, FarClipPlane);
                     
-                    projected_triangle ProjectedTriangle = {};
-                    bit32 NumberOfVertexesInTriangle = 3;
-                    f32 FocalPoint = 0.3f;
-                    f32 Sign = 1.0f;
-                    f32 ClosestZ = -FarClipPlane;
-                    for(bit32 v = 0; v < NumberOfVertexesInTriangle; v++)
-                    {
-                        vec4 Vertex4 = Transform * vec3tovec4(StartTriangle.E[v], 1.0f);
-                        f32 Z = Vertex4.z;
-                        if(Z >= 0.0f) { Z = -Z; }
-                        ProjectedTriangle.Triangle.E[v].x = (FocalPoint * Vertex4.x) / Z;
-                        ProjectedTriangle.Triangle.E[v].y = (FocalPoint * Vertex4.y) / Z;
-                        ProjectedTriangle.Triangle.E[v].z = -Vertex4.z;
-                    }
-                    ProjectedTriangle.Color = Color;
-                    
-#if 0
-                    {//Rewind the triangle if the winding is incorrect.
-                        vec2 A = {ProjectedTriangle.Triangle.A.x, ProjectedTriangle.Triangle.A.y};
-                        vec2 B = {ProjectedTriangle.Triangle.B.x, ProjectedTriangle.Triangle.B.y};
-                        vec2 C = {ProjectedTriangle.Triangle.C.x, ProjectedTriangle.Triangle.C.y};
-                        vec2 AB = B - A; vec2 AC = C - A;
-                        f32 wo = (AB.x*AC.y - AB.y*AC.x);
-                        if(wo < 0)
+                    if(!Xin || !Yin || !Zin)
+                    { 
+                        if(Xin)
                         {
-                            vec3 X = ProjectedTriangle.Triangle.B;
-                            ProjectedTriangle.Triangle.B = ProjectedTriangle.Triangle.C;
-                            ProjectedTriangle.Triangle.C = X;
+                            //SubdivideTriangle(Xin, Triangle, Block);
+                        }
+                        if(Yin)
+                        {
+                            //SubdivideTriangle(Yin, Triangle, Block);
+                        }
+                        if(Zin)
+                        {
+                            //SubdivideTriangle(Zin, Triangle, Block);
                         }
                     }
-#endif
-                    
-                    if(TriangleBoundTest(ProjectedTriangle.Triangle.A, LeftClipPlane, RightClipPlane, BottomClipPlane, TopClipPlane, NearClipPlane, FarClipPlane) ||
-                       TriangleBoundTest(ProjectedTriangle.Triangle.B, LeftClipPlane, RightClipPlane, BottomClipPlane, TopClipPlane, NearClipPlane, FarClipPlane) ||
-                       TriangleBoundTest(ProjectedTriangle.Triangle.C, LeftClipPlane, RightClipPlane, BottomClipPlane, TopClipPlane, NearClipPlane, FarClipPlane))
-                    {
-                        scanline_triangle ScanlineTriangle = {};
-                        ScanlineTriangle.Color = ProjectedTriangle.Color;
-                        for(bit32 v = 0, s = 0; v < NumberOfVertexesInTriangle; v++, s+=2)
-                        {
-#if TEST
-                            if(testr)
-                            {
-                                PrintFloat(&ProjectedTriangle.Triangle.E[v].x, PrintXLine, PrintYLine, false);
-                                PrintFloat(&ProjectedTriangle.Triangle.E[v].y, PrintXLine, PrintYLine, false);
-                                PrintFloat(&ProjectedTriangle.Triangle.E[v].z, PrintXLine, PrintYLine, true);
-                            }
-                            if(ProjectedTriangle.Triangle.E[v].x < LeftClipPlane) { ProjectedTriangle.Triangle.E[v].x = LeftClipPlane; }
-                            else if(ProjectedTriangle.Triangle.E[v].x > RightClipPlane) { ProjectedTriangle.Triangle.E[v].x = RightClipPlane; }
-                            if(ProjectedTriangle.Triangle.E[v].y < BottomClipPlane) { ProjectedTriangle.Triangle.E[v].y = BottomClipPlane; }
-                            else if(ProjectedTriangle.Triangle.E[v].y > TopClipPlane){ ProjectedTriangle.Triangle.E[v].y = TopClipPlane; }
-                            if(ProjectedTriangle.Triangle.E[v].z <= NearClipPlane) { ProjectedTriangle.Triangle.E[v].z = NearClipPlane; }
-                            else if(ProjectedTriangle.Triangle.E[v].z > FarClipPlane) { ProjectedTriangle.Triangle.E[v].z = FarClipPlane; }
-                            if(testr)
-                            {
-                                PrintFloat(&ProjectedTriangle.Triangle.E[v].x, PrintXLine, PrintYLine, false);
-                                PrintFloat(&ProjectedTriangle.Triangle.E[v].y, PrintXLine, PrintYLine, false);
-                                PrintFloat(&ProjectedTriangle.Triangle.E[v].z, PrintXLine, PrintYLine, true);
-                            }
-#else
-                            ProjectedTriangle.Triangle.E[v] = 
-                                ClampToPlanes(ProjectedTriangle.Triangle.E[v], 
-                                              LeftClipPlane, RightClipPlane, 
-                                              BottomClipPlane, TopClipPlane, 
-                                              NearClipPlane, FarClipPlane);
-#endif
-                            
-                            {//Convert the final vertex into the correct scanline position.
-                                ScanlineTriangle.E[s] = (bit32)(((ProjectedTriangle.Triangle.E[v].x/2)+0.5f) * (f32)SCREEN_X); 
-                                ScanlineTriangle.E[s+1] = (bit32)(((ProjectedTriangle.Triangle.E[v].y/2)+0.5f) * (f32)SCREEN_Y); 
-                            }
-#if TEST
-                            if(testr)
-                            {
-                                PrintInteger(&ScanlineTriangle.E[s], PrintXLine, PrintYLine, false);
-                                PrintInteger(&ScanlineTriangle.E[s+1], PrintXLine, PrintYLine, true);
-                            }
-#endif
-                        }
-#if TEST
-                        if(testr)
-                        {
-                            SDK_BLINKBOARD(2);
-                            testr = false;
-                        }
-#endif
-                        ScanlineTriangle.Z = (ProjectedTriangle.Triangle.A.z + ProjectedTriangle.Triangle.B.z + ProjectedTriangle.Triangle.C.z) * .5f;
-                        ScanlineTriangle.TriangleID = CurrentScanlineTriangle;
-                        ScanlineTriangleTransfer(&SortedTriangleArray[0], &ScanlineTriangle);
-                        for(bit32 s = 0; s < CurrentScanlineTriangle+1; s++)
-                        {
-                            if(ScanlineTriangle.Z < SortedTriangleArray[s].Z)
-                            {
-                                ScanlineTriangleTransfer(&SortedTriangleArray[s], &ScanlineTriangle);
-                            }
-                        }
-                        
-                        CurrentScanlineTriangle++;
-                    }
-                    
-                }//End draw triangle routine
-            }//End draw temple platform mesh routine
+                }
+            }//End tri clip and gen routine
+            bit32 TriangleEnd = Block->Used;
+            bit32 TotalAllocation = (TriangleEnd - TriangleStart) / sizeof(triangle);
+            PrintInteger(&TotalAllocation, PrintXLine, PrintYLine, true);
+            
+            //TODO(Andrew) DRAW!!!
+            
         }//Draw the box mesh end routine
     }//End draw temple platform instance routine
     
     //#if !defined(TEST)
-#if 1
+#if 0
     for(bit32 s = 0; s < CurrentScanlineTriangle; s++)
     {
         SoftwareDrawTriangle(SortedTriangleArray[s].A.x, SortedTriangleArray[s].A.y,
@@ -376,7 +233,6 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     }
 #endif
     
-    StackPopArray(scanline_triangle, ScanlineTriangleCount);
     
     SoftwareFrameBufferSwap(BackBufferColor);
 }
@@ -406,21 +262,23 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         getinputFRAMEDELAY = 0;
     }
     
+    memory_block MainBlock = {};
+    memory_block TemporaryBlock = {};
     {//Setup the game's memory
-        Memory.StartAddress = Platform_MemoryAllocate(DesiredMemorySize);
-        Memory.EndAddress = Memory.StartAddress + DesiredMemorySize;
-        Memory.RecordPosition = Memory.StartAddress;
-        Memory.StackPosition = Memory.EndAddress;
+        MainBlock.Size = Kilobytes(10);
+        MainBlock.Base = Platform_MemoryAllocate(MainBlock.Size);
+        memset(MainBlock.Base, 0x0, MainBlock.Size);
+        MainBlock.Used = 0; //Just to make sure.
+        MainBlock.Flags = 0;
+        TemporaryBlock = PushNewBlock(&MainBlock,  Kilobytes(9), MemoryFlag_Pow2Align);
     }//End of setting up the game's memory
-    
-    setupplayerdata();
     
     temple_platform TemplePlatform = {};
     
     //TODO(Andrew) To keep this code platform ignorant, move this code out into a SetupTemplePlatforms() function or macro.
     {//Setup the temple platform(s)
         {//Start of setting up the temple platform instances
-            TemplePlatform.Instance = RecordPushArray(temple_platform_instance, DESIRED_TEMPLE_PLATFORM_COUNT);
+            TemplePlatform.Instance = PushArray(&MainBlock, DESIRED_TEMPLE_PLATFORM_COUNT, temple_platform_instance, MemoryFlag_Pow2Align | MemoryFlag_ClearToZero);
             bit32 p = 0;
             TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0, 20.0f, {-2.0f, 1.0f, 0.0f}, {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}}); p++;
             TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0, 20.0f, {2.0f, -1.0f, 0.0f}, {{0.0f, 0.0f, 2.0f}, {0.0f, 0.0f, 0.0f}}); p++;
@@ -468,17 +326,10 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         }//End of setting up the box mesh
     }//End of setting up the temple platform(s)
     
-    {//Setup Timer
-        main_lastframeTIME = RPI2_QuerySystemTimerCounter();
-    }
-    
     camera Camera = {};
     game_player CurrentPlayer;
     CurrentPlayer.Transform.Translation = {0.0f, 0.0f, 45.0f};
     CurrentPlayer.Transform.RotationAxes = {0.0f, 0.0f, 0.0f};
-#if TEST
-    CurrentPlayer.Transform.RotationAxes.y = Radians(38.0f);
-#endif
     for(;;)
     {
         bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
@@ -493,9 +344,9 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         PrintFloat(&CurrentPlayer.Transform.Translation.z, &PrintXLine, &PrintYLine, true);
         f32 InDegrees = Degrees(CurrentPlayer.Transform.RotationAxes.y);
         PrintFloat(&InDegrees, &PrintXLine, &PrintYLine, true);
-        Platform_Render(0xFF000000, &TemplePlatform, &Camera, &PrintXLine, &PrintYLine);
-        testr = true;
+        
+        memory_block TemporaryStack = PushNewBlock(&TemporaryBlock, Kilobytes(8));
+        Platform_Render(0xFF000000, &TemplePlatform, &TemporaryStack, &Camera, &PrintXLine, &PrintYLine);
+        DeleteBlock(&TemporaryBlock, &TemporaryStack);
     }
-    
-    SpaceGameMain(&TemplePlatform);
 }
