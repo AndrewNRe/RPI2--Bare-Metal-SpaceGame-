@@ -158,13 +158,30 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
 {
     f32 BottomClipPlane = -SCREEN_Y; f32 TopClipPlane = SCREEN_Y;
     f32 LeftClipPlane = -SCREEN_X; f32 RightClipPlane = SCREEN_X;
-    f32 NearClipPlane = 0.1f; f32 FarClipPlane = 100.0f; 
+    f32 NearClipPlane = 0.1f; f32 FarClipPlane = 1000.0f; 
+    
+    f32 FocalPoint = 0.3f;
     
     mat4x4 CameraTransform = mat3x3tomat4x4(rotate3x3X(Camera->RotatePair.y) * rotate3x3Y(Camera->RotatePair.x)) * 
         TranslationAxesToMat4x4(-Camera->OrbitPosition);
     
-    render_box* Mesh = &TemplePlatform->Mesh;
+    bit32 MaxScanlineTriangles = ((((RENDER_BOX_INDEX_COUNT/3)*3)*2)*4) * TemplePlatform->InstanceCount;
+    bit32 CurrentScanlineTraiangle = 0;
+    scanline_triangle* ScanlineTriangleStart = PushArray(Block, MaxScanlineTriangles, scanline_triangle, MemoryFlag_NoAlign);
     
+    for(bit32 t = 0; t < MaxScanlineTriangles; t++)
+    {
+        ScanlineTriangleStart[t].Z = FarClipPlane;
+        ScanlineTriangleStart[t].Color = 0;
+        ScanlineTriangleStart[t].E[0] = 0;
+        ScanlineTriangleStart[t].E[1] = 0;
+        ScanlineTriangleStart[t].E[2] = 0;
+        ScanlineTriangleStart[t].E[3] = 0;
+        ScanlineTriangleStart[t].E[4] = 0;
+        ScanlineTriangleStart[t].E[5] = 0;
+    }
+    
+    render_box* Mesh = &TemplePlatform->Mesh;
     for(bit32 ti = 0; ti < TemplePlatform->InstanceCount; ti++)
     {//Draw a the current temple platform instance
         temple_platform_instance* Current = &TemplePlatform->Instance[ti];
@@ -177,7 +194,6 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
             FinalTransform.Translation.y += Height;
             mat4x4 WorldTransform = RotationAxesAndTranslationToMat4x4(FinalTransform);
             
-            bit32 TriangleStart = Block->Used;
             for(bit32 i = 0; i < RENDER_BOX_INDEX_COUNT; i+=3)
             {//Check triangle and generate N triangles if some are not inside some clip planes.
                 triangle* Triangle = PushStruct(Block, triangle, MemoryFlag_NoAlign);
@@ -191,48 +207,77 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                 for(bit32 v = 0; v < NUMBER_OF_VERTEXES_IN_TRIANGLE; v++)
                 {
                     vec3 Position = vec4tovec3(Transform * vec3tovec4(Triangle->E[v].Position, 1.0f));
+                    Position.z = -Position.z;
                     
                     bit32 Xin = Inside1DLineTest(Position.x, LeftClipPlane, RightClipPlane);
                     bit32 Yin = Inside1DLineTest(Position.y, BottomClipPlane, TopClipPlane);
                     bit32 Zin = Inside1DLineTest(Position.z, NearClipPlane, FarClipPlane);
                     
                     if(!Xin || !Yin || !Zin)
-                    { 
+                    {
+                        bit32 TriangleCount = 1;
+#if 0
                         if(Xin)
                         {
-                            //SubdivideTriangle(Xin, Triangle, Block);
+                            SubdivideTriangle(Xin, Triangle, Block);
+                            TriangleCount++;
                         }
                         if(Yin)
                         {
-                            //SubdivideTriangle(Yin, Triangle, Block);
+                            SubdivideTriangle(Yin, Triangle, Block);
+                            TriangleCount++;
                         }
                         if(Zin)
                         {
-                            //SubdivideTriangle(Zin, Triangle, Block);
+                            SubdivideTriangle(Zin, Triangle, Block);
+                            TriangleCount++;
                         }
+#endif
+                        
+                        scanline_triangle* ScanlineTriangle = &ScanlineTriangleStart[CurrentScanlineTraiangle += TriangleCount];
+                        for(bit32 t = 0;
+                            t < TriangleCount;
+                            t++, Triangle++)
+                        {
+                            ScanlineTriangle[t].Z = 0;
+                            for(bit32 v = 0, s = 0;
+                                v < NUMBER_OF_VERTEXES_IN_TRIANGLE;
+                                v++)
+                            {
+                                vec2 ZDivTriangle;
+                                ZDivTriangle.x = (FocalPoint * Triangle->E[v].Position.x) / Triangle->E[v].Position.z;
+                                ZDivTriangle.y = (FocalPoint * Triangle->E[v].Position.y) / Triangle->E[v].Position.z;
+                                ScanlineTriangle[t].Z += Triangle->E[v].Position.z; //Add this Z to get barycentric value of Z at the end!
+                                ScanlineTriangle[t].E[s] = ZDivTriangle.x * SCREEN_X;
+                                ScanlineTriangle[t].E[s+1] = ZDivTriangle.y * SCREEN_Y;
+                                ScanlineTriangle[t].Color = Triangle->E[v].Color;
+                                s+=2;
+                            }
+                            ScanlineTriangle[t].Z *= .5f; //Finish up getting the barycentric Z value between all the 3 vertexes on the triangle.
+                            ScanlineTriangleTransfer(ScanlineTriangleStart, &ScanlineTriangle[t]);
+                            for(bit32 i = 0; i < &ScanlineTriangle[t] - ScanlineTriangleStart; i++)
+                            {
+                                if(ScanlineTriangle[t].Z < ScanlineTriangleStart[i].Z)
+                                {
+                                    ScanlineTriangleTransfer(&ScanlineTriangleStart[i], &ScanlineTriangle[t]);
+                                }
+                            }
+                        }
+                        
                     }
                 }
             }//End tri clip and gen routine
-            bit32 TriangleEnd = Block->Used;
-            bit32 TotalAllocation = (TriangleEnd - TriangleStart) / sizeof(triangle);
-            PrintInteger(&TotalAllocation, PrintXLine, PrintYLine, true);
-            
-            //TODO(Andrew) DRAW!!!
-            
         }//Draw the box mesh end routine
     }//End draw temple platform instance routine
     
-    //#if !defined(TEST)
-#if 0
-    for(bit32 s = 0; s < CurrentScanlineTriangle; s++)
+    PrintInteger(&CurrentScanlineTraiangle, PrintXLine, PrintYLine, true);
+    for(bit32 s = 0; s < CurrentScanlineTraiangle; s++)
     {
-        SoftwareDrawTriangle(SortedTriangleArray[s].A.x, SortedTriangleArray[s].A.y,
-                             SortedTriangleArray[s].B.x, SortedTriangleArray[s].B.y,
-                             SortedTriangleArray[s].C.x, SortedTriangleArray[s].C.y, 
-                             SortedTriangleArray[s].Color, SortedTriangleArray[s].Color, SortedTriangleArray[s].Color);
+        SoftwareDrawTriangle(ScanlineTriangleStart[s].A.x, ScanlineTriangleStart[s].A.y,
+                             ScanlineTriangleStart[s].B.x, ScanlineTriangleStart[s].B.y,
+                             ScanlineTriangleStart[s].C.x, ScanlineTriangleStart[s].C.y, 
+                             ScanlineTriangleStart[s].Color, ScanlineTriangleStart[s].Color, ScanlineTriangleStart[s].Color);
     }
-#endif
-    
     
     SoftwareFrameBufferSwap(BackBufferColor);
 }
@@ -265,12 +310,12 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     memory_block MainBlock = {};
     memory_block TemporaryBlock = {};
     {//Setup the game's memory
-        MainBlock.Size = Kilobytes(10);
+        MainBlock.Size = Kilobytes(32);
         MainBlock.Base = Platform_MemoryAllocate(MainBlock.Size);
         memset(MainBlock.Base, 0x0, MainBlock.Size);
         MainBlock.Used = 0; //Just to make sure.
         MainBlock.Flags = 0;
-        TemporaryBlock = PushNewBlock(&MainBlock,  Kilobytes(9), MemoryFlag_Pow2Align);
+        TemporaryBlock = PushNewBlock(&MainBlock,  Kilobytes(30), MemoryFlag_Pow2Align);
     }//End of setting up the game's memory
     
     temple_platform TemplePlatform = {};
@@ -326,6 +371,19 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         }//End of setting up the box mesh
     }//End of setting up the temple platform(s)
     
+    {//TODO(Anmdrew) TESTING !! DELETE LATER
+        f32 BottomClipPlane = -SCREEN_Y; f32 TopClipPlane = SCREEN_Y;
+        f32 LeftClipPlane = -SCREEN_X; f32 RightClipPlane = SCREEN_X;
+        f32 NearClipPlane = 0.1f; f32 FarClipPlane = 1000.0f; 
+        vec3 Position = {25, -5, -20};
+        Position.z = -Position.z;
+        
+        bit32 Xin = Inside1DLineTest(Position.x, LeftClipPlane, RightClipPlane);
+        bit32 Yin = Inside1DLineTest(Position.y, BottomClipPlane, TopClipPlane);
+        bit32 Zin = Inside1DLineTest(Position.z, NearClipPlane, FarClipPlane);
+        if(!Zin) { SDK_BLINKBOARD(200); }
+    }//TODO(Andrew) END TEST!
+    
     camera Camera = {};
     game_player CurrentPlayer;
     CurrentPlayer.Transform.Translation = {0.0f, 0.0f, 45.0f};
@@ -336,7 +394,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         //AFter, like do something with collision on that player structure.
         //Finally, that's pretty much the old game after you get the platforms moving!!!
         //CurrentPlayer.Transform.Translation.z += 0.1f;
-        CurrentPlayer.Transform.RotationAxes.y += Radians(0.5f);
+        //CurrentPlayer.Transform.RotationAxes.y += Radians(0.5f);
         if(CurrentPlayer.Transform.RotationAxes.y >= PI32*2) { CurrentPlayer.Transform.RotationAxes.y = 0.0f; }
         Camera.OrbitPosition = CurrentPlayer.Transform.Translation;
         Camera.RotatePair.x = CurrentPlayer.Transform.RotationAxes.y;
@@ -345,7 +403,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         f32 InDegrees = Degrees(CurrentPlayer.Transform.RotationAxes.y);
         PrintFloat(&InDegrees, &PrintXLine, &PrintYLine, true);
         
-        memory_block TemporaryStack = PushNewBlock(&TemporaryBlock, Kilobytes(8));
+        memory_block TemporaryStack = PushNewBlock(&TemporaryBlock, Kilobytes(29));
         Platform_Render(0xFF000000, &TemplePlatform, &TemporaryStack, &Camera, &PrintXLine, &PrintYLine);
         DeleteBlock(&TemporaryBlock, &TemporaryStack);
     }

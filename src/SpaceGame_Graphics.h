@@ -26,7 +26,6 @@ struct scanline_triangle
 {
     f32 Z; //NOTE: Rough approximation of where the triangle actually is because I want to go fast and not really care too much as of 4/9/21
     bit32 Color;
-    bit32 TriangleID;
     union
     {
         struct { ivec2 A, B, C; };
