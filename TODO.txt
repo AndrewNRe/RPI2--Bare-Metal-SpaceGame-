@@ -18,7 +18,6 @@ C: Correct GJK to be more correct.
 
 F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
 
-4/26/21 -
-Need to fix the draw to ensure that the X and Y coordinates are actually in the proper position to go from wherever they're at in the world space, to the screen for 
-scanline conversions!
-After you solve that bug, it's time to fix clipping! So just re-enable the subdiv code and actually write the routine!
+4/27/21 -
+Next up is to get the subdiv clip code all working! DO NOT FORGET TO PASS TEH TRANSFORM AND WHATNOT OR MAYBE NOT? I AM UNSURE HOW THAT WILL WORK ATM!
+Either way, just get that part working and add more triangles to the list of triangles to render, and it'll all be good to go for now!
