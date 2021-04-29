@@ -15,13 +15,6 @@ struct triangle
     };
 };
 
-//TODO(Andrew) IS THE BELOW USED? IF NOT DELETE!
-struct projected_triangle
-{
-    triangle Triangle;
-    bit32 Color;
-};
-
 struct scanline_triangle
 {
     f32 Z; //NOTE: Rough approximation of where the triangle actually is because I want to go fast and not really care too much as of 4/9/21
@@ -41,3 +34,9 @@ void ScanlineTriangleTransfer(scanline_triangle* A, scanline_triangle* B)
     (*A) = (*B);
     (*B) = Temp;
 }
+
+#define REGION_BEHIND_START 1
+#define REGION_BEHIND_END 2
+#define REGION_X_OUT 0x3
+#define REGION_Y_OUT 0xC
+#define REGION_Z_OUT 0x30

@@ -158,8 +158,8 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
 {
     f32 BottomClipPlane = -SCREEN_Y; f32 TopClipPlane = SCREEN_Y;
     f32 LeftClipPlane = -SCREEN_X; f32 RightClipPlane = SCREEN_X;
-    f32 NearClipPlane = 1; //Once you get clipping working, consider trying to put this value to .1!
-    f32 FarClipPlane = 1000.0f; 
+    f32 NearClipPlane = -1; //Once you get clipping working, consider trying to put this value to .1!
+    f32 FarClipPlane = -1000.0f; 
     
     f32 XFocalPoint = 0.31f; f32 YFocalPoint = 0.41f;
     
@@ -197,93 +197,103 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
             
             for(bit32 i = 0; i < RENDER_BOX_INDEX_COUNT; i+=3)
             {//Check triangle and generate N triangles if some are not inside some clip planes.
-                triangle* Triangle = PushStruct(Block, triangle, MemoryFlag_NoAlign);
-                bit32 TriangleCount = 1;
-                Triangle->E[0] = Mesh->Vertex[Mesh->Index[i]];
-                Triangle->E[1] = Mesh->Vertex[Mesh->Index[i+1]];
-                Triangle->E[2] = Mesh->Vertex[Mesh->Index[i+2]];
+                triangle BaseTriangle = {}; 
+                BaseTriangle.A = Mesh->Vertex[Mesh->Index[i]];
+                BaseTriangle.B = Mesh->Vertex[Mesh->Index[i+1]]; 
+                BaseTriangle.C = Mesh->Vertex[Mesh->Index[i+2]];
                 
                 mat4x4 Transform = CameraTransform * WorldTransform;
-                
+                bit16 Region[4]; //NOTE: Per triangle, store what region they lie in! +1 for padding.
                 for(bit32 v = 0; v < NUMBER_OF_VERTEXES_IN_TRIANGLE; v++)
-                {//Per vertex, test to see if it goes outside a plane and subdiv the triangle if it does!
-                    vec3 Position = Triangle->E[v].Position = vec4tovec3(Transform * vec3tovec4(Triangle->E[v].Position, 1.0f));
+                {//Per vertex, test to see what planes it is outside of.
+                    vec3 Position = BaseTriangle.E[v].Position = vec4tovec3(Transform * vec3tovec4(BaseTriangle.E[v].Position, 1.0f)); //Transform the position.;
                     
                     bit32 Xin = Inside1DLineTest(Position.x, LeftClipPlane, RightClipPlane);
                     bit32 Yin = Inside1DLineTest(Position.y, BottomClipPlane, TopClipPlane);
-                    bit32 Zin = Inside1DLineTest(Position.z, NearClipPlane, FarClipPlane);
-#if 0
-                    if(!Xin || !Yin || !Zin)
-                    {
-                        if(Xin)
-                        {
-                            SubdivideTriangle(Xin, Triangle, Block);
-                            TriangleCount++;
-                        }
-                        if(Yin)
-                        {
-                            SubdivideTriangle(Yin, Triangle, Block);
-                            TriangleCount++;
-                        }
-                        if(Zin)
-                        {
-                            SubdivideTriangle(Zin, Triangle, Block);
-                            TriangleCount++;
-                        }
-                    }
-#endif
+                    bit32 Zin = 0;
+                    if(Position.z > NearClipPlane){ Zin = REGION_BEHIND_START; }
+                    else if(Position.z < FarClipPlane) { Zin = REGION_BEHIND_END; }
                     
+                    //NOTE: Little endian machine! I have the bits going from least significant bit, Xin, Yin, Zin.
+                    //Going from most significant, it'd be Zin, Yin, Xin. So if you're using the Windows 2021 4/28/21 calculator bit viewer, you'll see the bits like this!!!
+                    Region[v] = (Xin | (Yin << 2) | (Zin << 4));
                 }
                 
-                for(bit32 t = 0;
-                    t < TriangleCount;
-                    CurrentScanlineTriangle++, t++, Triangle++)
+                if(!OutOfAllPlanes(Region[0]) || !OutOfAllPlanes(Region[1]) || !OutOfAllPlanes(Region[2]))
                 {
-                    ScanlineTriangleStart[CurrentScanlineTriangle].Z = 0;
-                    for(bit32 v = 0, s = 0;
+                    vertex* VertexArray = (vertex*)(Block->Base + Block->Used);
+                    bit32 CV = 0; //NOTE: Current Vertex
+                    for(bit32 v = 0, Shift = 0;
                         v < NUMBER_OF_VERTEXES_IN_TRIANGLE;
-                        v++)
+                        v++, Shift += 2)
                     {
-                        vec2 ZDivTriangle;
-                        const f32 RemoveQuadrantOne = 0.5f;
-                        ZDivTriangle.x = ((XFocalPoint * Triangle->E[v].Position.x) / Triangle->E[v].Position.z) + RemoveQuadrantOne;
-                        ZDivTriangle.y = ((YFocalPoint * Triangle->E[v].Position.y) / Triangle->E[v].Position.z) + RemoveQuadrantOne;
-                        ScanlineTriangleStart[CurrentScanlineTriangle].Z += Triangle->E[v].Position.z; //Add this Z to get barycentric value of Z at the end!
-                        ScanlineTriangleStart[CurrentScanlineTriangle].E[s] = ZDivTriangle.x * (f32)SCREEN_X;
-                        ScanlineTriangleStart[CurrentScanlineTriangle].E[s+1] = ZDivTriangle.y * (f32)SCREEN_Y;
-                        ScanlineTriangleStart[CurrentScanlineTriangle].Color = Triangle->E[v].Color;
-                        ScanlineTriangleStart[CurrentScanlineTriangle].PostDiv[v] = ZDivTriangle;
-                        s+=2;
+                        CV += SubdivideTriangle(Block, &BaseTriangle, v, Region[v]);
                     }
-                    ScanlineTriangleStart[CurrentScanlineTriangle].Z *= .5f; //Finish up getting the barycentric Z value between all the 3 vertexes on the triangle.
-                    ScanlineTriangleStart[CurrentScanlineTriangle].TriangleID = (CurrentScanlineTriangle - TriangleCount) + t;
-                    ScanlineTriangleTransfer(&ScanlineTriangleStart[0], &ScanlineTriangleStart[CurrentScanlineTriangle]);
-                    for(bit32 st = 0; st < CurrentScanlineTriangle + 1; st++)
+                    
+                    //TODO(Andrew) Use the given vertex stream and properly create N triangles!
+                    //One big helper is to test hard and confirm my current theory that if you have vertexes of a certain count, the winding of the resulting triangle is quite simple.
+                    //Below code is test btw.
+                    bit32 TriangleCount = 0;
+                    triangle* Triangle = PushStruct(Block, triangle, MemoryFlag_NoAlign);
+                    Triangle[TriangleCount].E[0] = VertexArray[0];
+                    Triangle[TriangleCount].E[1] = VertexArray[1];
+                    Triangle[TriangleCount].E[2] = VertexArray[2];
+                    TriangleCount++;
+                    for(bit32 t = 0;
+                        t < TriangleCount;
+                        CurrentScanlineTriangle++, t++, Triangle++)
                     {
-                        if(ScanlineTriangleStart[CurrentScanlineTriangle].Z < ScanlineTriangleStart[st].Z)
+                        ScanlineTriangleStart[CurrentScanlineTriangle].Z = 0;
+                        for(bit32 v = 0, s = 0;
+                            v < NUMBER_OF_VERTEXES_IN_TRIANGLE;
+                            v++)
                         {
-                            ScanlineTriangleTransfer(&ScanlineTriangleStart[st], &ScanlineTriangleStart[CurrentScanlineTriangle]);
+                            vec2 ZDivTriangle;
+                            const f32 RemoveQuadrantOne = 0.5f;
+                            ZDivTriangle.x = ((XFocalPoint * Triangle->E[v].Position.x) / Triangle->E[v].Position.z) + RemoveQuadrantOne;
+                            ZDivTriangle.y = ((YFocalPoint * Triangle->E[v].Position.y) / Triangle->E[v].Position.z) + RemoveQuadrantOne;
+                            ScanlineTriangleStart[CurrentScanlineTriangle].Z += Triangle->E[v].Position.z; //Add this Z to get barycentric value of Z at the end!
+                            ScanlineTriangleStart[CurrentScanlineTriangle].E[s] = ZDivTriangle.x * (f32)SCREEN_X;
+                            ScanlineTriangleStart[CurrentScanlineTriangle].E[s+1] = ZDivTriangle.y * (f32)SCREEN_Y;
+                            ScanlineTriangleStart[CurrentScanlineTriangle].Color = Triangle->E[v].Color;
+                            ScanlineTriangleStart[CurrentScanlineTriangle].PostDiv[v] = ZDivTriangle;
+                            s+=2;
+                        }
+                        ScanlineTriangleStart[CurrentScanlineTriangle].Z *= .5f; //Finish up getting the barycentric Z value between all the 3 vertexes on the triangle.
+                        ScanlineTriangleStart[CurrentScanlineTriangle].TriangleID = (CurrentScanlineTriangle - TriangleCount) + t;
+                        ScanlineTriangleTransfer(&ScanlineTriangleStart[0], &ScanlineTriangleStart[CurrentScanlineTriangle]);
+                        for(bit32 st = 0; st < CurrentScanlineTriangle + 1; st++)
+                        {
+                            if(ScanlineTriangleStart[CurrentScanlineTriangle].Z < ScanlineTriangleStart[st].Z)
+                            {
+                                ScanlineTriangleTransfer(&ScanlineTriangleStart[st], &ScanlineTriangleStart[CurrentScanlineTriangle]);
+                            }
                         }
                     }
-                }
+                }//End of if you were even possibly in the screen or not.
+                //else early out because there's no valid triangle here!
             }//End tri clip and gen routine
         }//Draw the box mesh end routine
     }//End draw temple platform instance routine
     
     PrintInteger(&CurrentScanlineTriangle, PrintXLine, PrintYLine, true);
+    
     for(bit32 s = 0; s < CurrentScanlineTriangle; s++)
     {
         PrintInteger(&ScanlineTriangleStart[s].TriangleID, PrintXLine, PrintYLine, false);
+        PrintFloat(&ScanlineTriangleStart[s].Z, PrintXLine, PrintYLine, false);
         PrintFloat(&ScanlineTriangleStart[s].PostDiv[0].x, PrintXLine, PrintYLine, false);
         PrintFloat(&ScanlineTriangleStart[s].PostDiv[0].y, PrintXLine, PrintYLine, false);
         PrintFloat(&ScanlineTriangleStart[s].PostDiv[1].x, PrintXLine, PrintYLine, false);
         PrintFloat(&ScanlineTriangleStart[s].PostDiv[1].y, PrintXLine, PrintYLine, false);
         PrintFloat(&ScanlineTriangleStart[s].PostDiv[2].x, PrintXLine, PrintYLine, false);
         PrintFloat(&ScanlineTriangleStart[s].PostDiv[2].y, PrintXLine, PrintYLine, true);
+#if 1
         SoftwareDrawTriangle(ScanlineTriangleStart[s].A.x, ScanlineTriangleStart[s].A.y,
                              ScanlineTriangleStart[s].B.x, ScanlineTriangleStart[s].B.y,
                              ScanlineTriangleStart[s].C.x, ScanlineTriangleStart[s].C.y, 
                              ScanlineTriangleStart[s].Color, ScanlineTriangleStart[s].Color, ScanlineTriangleStart[s].Color);
+#endif
     }
     
     SoftwareFrameBufferSwap(BackBufferColor);
@@ -378,29 +388,16 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         }//End of setting up the box mesh
     }//End of setting up the temple platform(s)
     
-    {//TODO(Anmdrew) TESTING !! DELETE LATER
-        f32 BottomClipPlane = -SCREEN_Y; f32 TopClipPlane = SCREEN_Y;
-        f32 LeftClipPlane = -SCREEN_X; f32 RightClipPlane = SCREEN_X;
-        f32 NearClipPlane = 0.1f; f32 FarClipPlane = 1000.0f; 
-        vec3 Position = {25, -5, -20};
-        Position.z = -Position.z;
-        
-        bit32 Xin = Inside1DLineTest(Position.x, LeftClipPlane, RightClipPlane);
-        bit32 Yin = Inside1DLineTest(Position.y, BottomClipPlane, TopClipPlane);
-        bit32 Zin = Inside1DLineTest(Position.z, NearClipPlane, FarClipPlane);
-        if(!Zin) { SDK_BLINKBOARD(200); }
-    }//TODO(Andrew) END TEST!
-    
     camera Camera = {};
     game_player CurrentPlayer;
-    CurrentPlayer.Transform.Translation = {0.0f, 0.0f, 45.0f};
+    CurrentPlayer.Transform.Translation = {0.0f, 0.0f, 65.0f};
     CurrentPlayer.Transform.RotationAxes = {0.0f, 0.0f, 0.0f};
     for(;;)
     {
         bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
         //AFter, like do something with collision on that player structure.
         //Finally, that's pretty much the old game after you get the platforms moving!!!
-        CurrentPlayer.Transform.Translation.z += 0.1f;
+        CurrentPlayer.Transform.Translation.z -= 0.1f;
         //CurrentPlayer.Transform.RotationAxes.y += Radians(0.5f);
         if(CurrentPlayer.Transform.RotationAxes.y >= PI32*2) { CurrentPlayer.Transform.RotationAxes.y = 0.0f; }
         Camera.OrbitPosition = CurrentPlayer.Transform.Translation;

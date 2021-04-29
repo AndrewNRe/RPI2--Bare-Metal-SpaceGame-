@@ -18,6 +18,14 @@ C: Correct GJK to be more correct.
 
 F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
 
-4/27/21 -
-Next up is to get the subdiv clip code all working! DO NOT FORGET TO PASS TEH TRANSFORM AND WHATNOT OR MAYBE NOT? I AM UNSURE HOW THAT WILL WORK ATM!
-Either way, just get that part working and add more triangles to the list of triangles to render, and it'll all be good to go for now!
+4/29/21 -
+-Need to now clip invalid vertexes against the valid vertex that is inside that could be drawn!
+-Also need to remove clockwise triangles since they won't be drawn by the software routine iirc!
+Also, if the asm routine is drawing clockwise, swap it to counter clockwise at some point! I'm pretty sure it is CCW though.
+
+
+Step 0 - figure out where to clip and generate more vertex data.
+So you'll have 3 -> N vertex sized array before next step.
+Step 1 - Wind counter clockwise and figure out where each vertex goes. There appears to be constants in terms of how much each vertex should be reused, IE the index
+buffer when pushing one triangle and figuring out where each vertex goes!
+Step 2 - you'll be all good to draw! So just send those triangles to the scanline sort and it'll all work out to some degree!
