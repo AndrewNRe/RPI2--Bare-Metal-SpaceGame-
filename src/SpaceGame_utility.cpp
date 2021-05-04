@@ -2,6 +2,8 @@
 #define PI32 3.14159265359f
 #define Radians(Degrees) (Degrees * (PI32/180))
 #define Degrees(Radians) (Radians * (180.0f/PI32))
+#define F32_EPSILON 1.19209290e-7f
+#define F32_MAX 3.402823466e+38
 
 #define framerate 15
 

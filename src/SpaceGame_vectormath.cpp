@@ -502,3 +502,77 @@ inline mat4x4 RotationAxesAndTranslationToMat4x4(world_transform Transform)
     Result.d[3][0] = 0.0f; Result.d[3][1] = 0.0f; Result.d[3][2] = 0.0f; Result.d[3][3] = 1.0f;
     return Result;
 }
+
+#define INVALID_VECTOR_3 vec3({F32_MAX, F32_MAX, F32_MAX})
+vec3 ClosestPointBetweenTwoLines(vec3 A0, vec3 A1, vec3 B0, vec3 B1) //NOTE: Or maybe the intersecting point.
+{//NOTE: I am using the "Real Time Collision Detection" book written by Christer Ericson for this implementation. So, major thanks to them!
+    vec3 Result = {};
+    vec3 AV = A1 - A0;
+    vec3 BV = B1 - B0;
+    vec3 r = A0 - B0;
+    f32 a = dot_vec3(AV, AV);
+    f32 e = dot_vec3(BV, BV);
+    f32 f = dot_vec3(BV, r);
+    
+    f32 s = 0.0f;
+    f32 t = 0.0f;
+    
+    //Check if either or boht segments degenerate into points.
+    if(!(a <= F32_EPSILON && e <= F32_EPSILON))
+    {
+        if(a <= F32_EPSILON)
+        {//First segment degenerates into a point
+            t = f / e; //s = 0 => t = (b*s + f) / e = f / e
+            t = clamp(t, 0.0f, 1.0f);
+        }
+        else
+        {
+            f32 c = dot_vec3(AV, r);
+            if(e <= F32_EPSILON)
+            {//Second segment degenerates into a point
+                t = 0.0f;
+                s = clamp(-c / a, 0.0f, 1.0f);
+            }
+            else
+            {//General non degenerate case starts here
+                f32 b = dot_vec3(AV, BV);
+                f32 denom = a*e-b*b;
+                //If segments not parallel, compute closest point on L1 to L2 and clamp to segment S1, else pick arbitrary s (here 0).
+                if(denom != 0.0f)
+                {
+                    s = clamp((b*f  - c*e) / denom, 0.0f, 1.0f);
+                }
+                else
+                {
+                    s = 0.0f;
+                }
+                //Compute point on l2 closest to s1(s) using t = dot((A0 + AV*s) - B0, BV) / dot_vec3(BV, BV) = (b*s + f) / e
+                t = (b*s + f) / e;
+                
+                //If t in [0, 1] done, else clamp t, recompute s for the new value of t using 
+                //s = dot_vec3((B0 + BV*t) - A0, AV) / dot_vec3(AV, AV) = (t*b - c) / a
+                //and clamp s to [0, 1]
+                if(t < 0.0f)
+                {
+                    t = 0.0f;
+                    s = clamp(-c / a, 0.0f, 1.0f);
+                }
+                else if(t > 1.0f)
+                {
+                    t = 1.0f;
+                    s = clamp((b - c) / a, 0.0f, 1.0f);
+                }
+            }
+        }
+        
+        //vec3 ResultA = A0 + AV * s;
+        //vec3 ResultB = B0 + BV * t; //NOTE: Basically, this will give you two points that are where on the two segments you'd be closest to.
+        //I am taking ResultA in this case, because I usually just send the clip planes as the first two parameters and thus, ResultA would be the most accurate.
+        Result = A0 + AV * s;
+    }
+    else
+    {//both segments degenerate into points so invalid to return.
+        Result = INVALID_VECTOR_3;
+    }
+    return Result;
+}

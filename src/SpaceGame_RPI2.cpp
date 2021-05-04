@@ -31,9 +31,9 @@ bit32 collisionDEBUG_multiplier = 0;
 #include <SpaceGame_utility.cpp>
 #include <SpaceGame_Memory.h>
 #include <SpaceGame_world.h>
+#include <SpaceGame_vectormath.cpp>
 #include <SpaceGame_Graphics.h>
 #include <SpaceGame_Graphics.cpp>
-#include <SpaceGame_vectormath.cpp>
 #include <SpaceGame_templeplatform.cpp>
 #include <SpaceGame_platform.cpp>
 #include <SpaceGame_collision.cpp>
@@ -227,18 +227,49 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                         v < NUMBER_OF_VERTEXES_IN_TRIANGLE;
                         v++, Shift += 2)
                     {
-                        CV += SubdivideTriangle(Block, &BaseTriangle, v, Region[v]);
+                        CV += SubdivideTriangle(Block, &BaseTriangle, v, Region[v], VertexArray, CV,
+                                                BottomClipPlane, TopClipPlane,
+                                                LeftClipPlane, RightClipPlane,
+                                                NearClipPlane, FarClipPlane);
                     }
                     
-                    //TODO(Andrew) Use the given vertex stream and properly create N triangles!
-                    //One big helper is to test hard and confirm my current theory that if you have vertexes of a certain count, the winding of the resulting triangle is quite simple.
-                    //Below code is test btw.
+                    
+                    triangle* Triangle = NULL;
                     bit32 TriangleCount = 0;
-                    triangle* Triangle = PushStruct(Block, triangle, MemoryFlag_NoAlign);
-                    Triangle[TriangleCount].E[0] = VertexArray[0];
-                    Triangle[TriangleCount].E[1] = VertexArray[1];
-                    Triangle[TriangleCount].E[2] = VertexArray[2];
-                    TriangleCount++;
+                    if(CV == 3)
+                    {
+                        Triangle = PushStruct(Block, triangle, MemoryFlag_NoAlign);
+                        Triangle[TriangleCount].E[0] = VertexArray[0];
+                        Triangle[TriangleCount].E[1] = VertexArray[1];
+                        Triangle[TriangleCount].E[2] = VertexArray[2];
+                        TriangleCount++;
+                    }
+                    else if(CV == 6)
+                    {
+                        bit32 Count = 4;
+                        Triangle = PushArray(Block, Count, triangle, MemoryFlag_NoAlign);
+                        Triangle[TriangleCount].E[0] = VertexArray[0];
+                        Triangle[TriangleCount].E[1] = VertexArray[3];
+                        Triangle[TriangleCount].E[2] = VertexArray[1];
+                        TriangleCount++;
+                        Triangle[TriangleCount].E[0] = VertexArray[3];
+                        Triangle[TriangleCount].E[1] = VertexArray[2];
+                        Triangle[TriangleCount].E[2] = VertexArray[5];
+                        TriangleCount++;
+                        Triangle[TriangleCount].E[0] = VertexArray[5];
+                        Triangle[TriangleCount].E[1] = VertexArray[4];
+                        Triangle[TriangleCount].E[2] = VertexArray[1];
+                        TriangleCount++;
+                        Triangle[TriangleCount].E[0] = VertexArray[1];
+                        Triangle[TriangleCount].E[1] = VertexArray[3];
+                        Triangle[TriangleCount].E[2] = VertexArray[5];
+                        TriangleCount++;
+                    }
+                    else
+                    {
+                        //Assert(0); //NOTE: I really shouldn't be able to have any other case besides 3 or 6 if my geometry is correct.
+                    }
+                    
                     for(bit32 t = 0;
                         t < TriangleCount;
                         CurrentScanlineTriangle++, t++, Triangle++)

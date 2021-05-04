@@ -18,7 +18,7 @@ C: Correct GJK to be more correct.
 
 F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
 
-4/29/21 -
+4/30/21 -
 -Need to now clip invalid vertexes against the valid vertex that is inside that could be drawn!
 -Also need to remove clockwise triangles since they won't be drawn by the software routine iirc!
 Also, if the asm routine is drawing clockwise, swap it to counter clockwise at some point! I'm pretty sure it is CCW though.
