@@ -208,15 +208,7 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                 {//Per vertex, test to see what planes it is outside of.
                     vec3 Position = BaseTriangle.E[v].Position = vec4tovec3(Transform * vec3tovec4(BaseTriangle.E[v].Position, 1.0f)); //Transform the position.;
                     
-                    bit32 Xin = Inside1DLineTest(Position.x, LeftClipPlane, RightClipPlane);
-                    bit32 Yin = Inside1DLineTest(Position.y, BottomClipPlane, TopClipPlane);
-                    bit32 Zin = 0;
-                    if(Position.z > NearClipPlane){ Zin = REGION_BEHIND_START; }
-                    else if(Position.z < FarClipPlane) { Zin = REGION_BEHIND_END; }
-                    
-                    //NOTE: Little endian machine! I have the bits going from least significant bit, Xin, Yin, Zin.
-                    //Going from most significant, it'd be Zin, Yin, Xin. So if you're using the Windows 2021 4/28/21 calculator bit viewer, you'll see the bits like this!!!
-                    Region[v] = (Xin | (Yin << 2) | (Zin << 4));
+                    Region[v] = RegionCheck(Position, BottomClipPlane, TopClipPlane, LeftClipPlane, RightClipPlane, NearClipPlane, FarClipPlane);
                 }
                 
                 if(!OutOfAllPlanes(Region[0]) || !OutOfAllPlanes(Region[1]) || !OutOfAllPlanes(Region[2]))
@@ -236,6 +228,13 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                     
                     triangle* Triangle = NULL;
                     bit32 TriangleCount = 0;
+#if 0
+                    Triangle = PushStruct(Block, triangle, MemoryFlag_NoAlign);
+                    Triangle[TriangleCount].E[0] = BaseTriangle.E[0];
+                    Triangle[TriangleCount].E[1] = BaseTriangle.E[1];
+                    Triangle[TriangleCount].E[2] = BaseTriangle.E[2];
+                    TriangleCount++;
+#else
                     if(CV == 3)
                     {
                         Triangle = PushStruct(Block, triangle, MemoryFlag_NoAlign);
@@ -265,10 +264,15 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                         Triangle[TriangleCount].E[2] = VertexArray[5];
                         TriangleCount++;
                     }
-                    else
+                    else if(CV < 3)
                     {
-                        //Assert(0); //NOTE: I really shouldn't be able to have any other case besides 3 or 6 if my geometry is correct.
+                        Assert(0); //NOTE: I really shouldn't be able to have any other case besides 3 or 6 if my geometry is correct.
                     }
+                    else if(CV > 6)
+                    {
+                        Assert(0);
+                    }
+#endif
                     
                     for(bit32 t = 0;
                         t < TriangleCount;
@@ -281,13 +285,14 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                         {
                             vec2 ZDivTriangle;
                             const f32 RemoveQuadrantOne = 0.5f;
-                            ZDivTriangle.x = ((XFocalPoint * Triangle->E[v].Position.x) / Triangle->E[v].Position.z) + RemoveQuadrantOne;
-                            ZDivTriangle.y = ((YFocalPoint * Triangle->E[v].Position.y) / Triangle->E[v].Position.z) + RemoveQuadrantOne;
+                            ZDivTriangle.x = clamp(0.0f, ((XFocalPoint * Triangle->E[v].Position.x) / Triangle->E[v].Position.z) + RemoveQuadrantOne, 1.0f);
+                            ZDivTriangle.y = clamp(0.0f, ((YFocalPoint * Triangle->E[v].Position.y) / Triangle->E[v].Position.z) + RemoveQuadrantOne, 1.0f);
                             ScanlineTriangleStart[CurrentScanlineTriangle].Z += Triangle->E[v].Position.z; //Add this Z to get barycentric value of Z at the end!
                             ScanlineTriangleStart[CurrentScanlineTriangle].E[s] = ZDivTriangle.x * (f32)SCREEN_X;
                             ScanlineTriangleStart[CurrentScanlineTriangle].E[s+1] = ZDivTriangle.y * (f32)SCREEN_Y;
                             ScanlineTriangleStart[CurrentScanlineTriangle].Color = Triangle->E[v].Color;
-                            ScanlineTriangleStart[CurrentScanlineTriangle].PostDiv[v] = ZDivTriangle;
+                            //ScanlineTriangleStart[CurrentScanlineTriangle].PostDiv[v] = ZDivTriangle;
+                            ScanlineTriangleStart[CurrentScanlineTriangle].PreDiv[v] = Triangle->E[v].Position;
                             s+=2;
                         }
                         ScanlineTriangleStart[CurrentScanlineTriangle].Z *= .5f; //Finish up getting the barycentric Z value between all the 3 vertexes on the triangle.
@@ -312,6 +317,17 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     for(bit32 s = 0; s < CurrentScanlineTriangle; s++)
     {
         PrintInteger(&ScanlineTriangleStart[s].TriangleID, PrintXLine, PrintYLine, false);
+#if 1
+        PrintFloat(&ScanlineTriangleStart[s].PreDiv[0].x, PrintXLine, PrintYLine, false);
+        PrintFloat(&ScanlineTriangleStart[s].PreDiv[0].y, PrintXLine, PrintYLine, false);
+        PrintFloat(&ScanlineTriangleStart[s].PreDiv[0].z, PrintXLine, PrintYLine, false);
+        PrintFloat(&ScanlineTriangleStart[s].PreDiv[1].x, PrintXLine, PrintYLine, false);
+        PrintFloat(&ScanlineTriangleStart[s].PreDiv[1].y, PrintXLine, PrintYLine, false);
+        PrintFloat(&ScanlineTriangleStart[s].PreDiv[1].z, PrintXLine, PrintYLine, false);
+        PrintFloat(&ScanlineTriangleStart[s].PreDiv[2].x, PrintXLine, PrintYLine, false);
+        PrintFloat(&ScanlineTriangleStart[s].PreDiv[2].y, PrintXLine, PrintYLine, false);
+        PrintFloat(&ScanlineTriangleStart[s].PreDiv[2].z, PrintXLine, PrintYLine, true);
+#else
         PrintFloat(&ScanlineTriangleStart[s].Z, PrintXLine, PrintYLine, false);
         PrintFloat(&ScanlineTriangleStart[s].PostDiv[0].x, PrintXLine, PrintYLine, false);
         PrintFloat(&ScanlineTriangleStart[s].PostDiv[0].y, PrintXLine, PrintYLine, false);
@@ -319,6 +335,7 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
         PrintFloat(&ScanlineTriangleStart[s].PostDiv[1].y, PrintXLine, PrintYLine, false);
         PrintFloat(&ScanlineTriangleStart[s].PostDiv[2].x, PrintXLine, PrintYLine, false);
         PrintFloat(&ScanlineTriangleStart[s].PostDiv[2].y, PrintXLine, PrintYLine, true);
+#endif
 #if 1
         SoftwareDrawTriangle(ScanlineTriangleStart[s].A.x, ScanlineTriangleStart[s].A.y,
                              ScanlineTriangleStart[s].B.x, ScanlineTriangleStart[s].B.y,
@@ -421,7 +438,9 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     
     camera Camera = {};
     game_player CurrentPlayer;
-    CurrentPlayer.Transform.Translation = {0.0f, 0.0f, 65.0f};
+    CurrentPlayer.Transform.Translation.x = 0.0f;
+    CurrentPlayer.Transform.Translation.y = 6.0f;
+    CurrentPlayer.Transform.Translation.z = 65.0f;
     CurrentPlayer.Transform.RotationAxes = {0.0f, 0.0f, 0.0f};
     for(;;)
     {
@@ -434,7 +453,8 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         Camera.OrbitPosition = CurrentPlayer.Transform.Translation;
         Camera.RotatePair.x = CurrentPlayer.Transform.RotationAxes.y;
         Camera.RotatePair.y = CurrentPlayer.Transform.RotationAxes.x;
-        PrintFloat(&CurrentPlayer.Transform.Translation.z, &PrintXLine, &PrintYLine, true);
+        f32 FMZ = CurrentPlayer.Transform.Translation.z - 25;
+        PrintFloat(&FMZ, &PrintXLine, &PrintYLine, true);
         f32 InDegrees = Degrees(CurrentPlayer.Transform.RotationAxes.y);
         PrintFloat(&InDegrees, &PrintXLine, &PrintYLine, true);
         

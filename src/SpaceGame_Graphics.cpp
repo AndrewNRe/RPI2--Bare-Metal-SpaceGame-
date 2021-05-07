@@ -6,8 +6,24 @@ bit32 Inside1DLineTest(f32 Value, f32 Start, f32 End)
     return InsideRegion;
 }
 
+bit32 RegionCheck(vec3 Position,
+                  f32 BottomClipPlane, f32 TopClipPlane,
+                  f32 LeftClipPlane, f32 RightClipPlane,
+                  f32 NearClipPlane, f32 FarClipPlane)
+{
+    bit32 Result = 0;
+    bit32 Xin = Inside1DLineTest(Position.x, LeftClipPlane, RightClipPlane);
+    bit32 Yin = Inside1DLineTest(Position.y, BottomClipPlane, TopClipPlane);
+    bit32 Zin = 0;
+    if(Position.z > NearClipPlane){ Zin = REGION_BEHIND_START; }
+    else if(Position.z < FarClipPlane) { Zin = REGION_BEHIND_END; }
+    //NOTE: Little endian machine! I have the bits going from least significant bit, Xin, Yin, Zin.
+    //Going from most significant, it'd be Zin, Yin, Xin. So if you're using the Windows 2021 4/28/21 calculator bit viewer, you'll see the bits like this!!!
+    Result = (Xin | (Yin << 2) | (Zin << 4));
+}
 
-#define OutOfAllPlanes(Region) ( ((Region & REGION_X_OUT) && (Region & REGION_Y_OUT)) || (Region & REGION_Z_OUT))
+//#define OutOfAllPlanes(Region) ( ((Region & REGION_X_OUT) && (Region & REGION_Y_OUT)) || (Region & REGION_Z_OUT))
+#define OutOfAllPlanes(Region) ( ((Region) & REGION_X_OUT) && ((Region) & REGION_Y_OUT) && ((Region) & REGION_Z_OUT) )
 
 bit32 SubdivideTriangle(memory_block* Block, triangle* Triangle, bit32 VertexID, bit32 Region,
                         vertex* VertexArray, bit32 Base,
@@ -19,6 +35,7 @@ bit32 SubdivideTriangle(memory_block* Block, triangle* Triangle, bit32 VertexID,
     vertex CheckVertex = Triangle->E[VertexID];
     if(Region)
     {
+        bit32 NearClipPlaneOffset = NearClipPlane + 0.1f;
         vec3 Result = CheckVertex.Position;
         bit32 Color = CheckVertex.Color;
         //First test to see if you're out of 2 planes at once.
@@ -28,17 +45,18 @@ bit32 SubdivideTriangle(memory_block* Block, triangle* Triangle, bit32 VertexID,
             Result.y = (Region & 0x4) ? BottomClipPlane : TopClipPlane;
             if(Region & 0x30)
             {
-                Result.z = (Region & 0x10) ? NearClipPlane : FarClipPlane;
+                SDK_BLINKBOARD(1);
+                Result.z = (Region & 0x10) ? NearClipPlaneOffset : FarClipPlane;
             }
         }
         else if(Region & 0x12 && Region & 0x30)
         {//YZ double out
             Result.y = (Region & 0x4) ? BottomClipPlane : TopClipPlane;
-            Result.z = (Region & 0x10) ? NearClipPlane : FarClipPlane;
+            Result.z = (Region & 0x10) ? NearClipPlaneOffset : FarClipPlane;
         }
         else if(Region & 0x30 && Region & 0x3)
         {//ZX double out
-            Result.z = (Region & 0x10) ? NearClipPlane : FarClipPlane;
+            Result.z = (Region & 0x10) ? NearClipPlaneOffset : FarClipPlane;
             Result.x = (Region & 0x1) ? LeftClipPlane : RightClipPlane;
         }
         else
@@ -65,7 +83,10 @@ bit32 SubdivideTriangle(memory_block* Block, triangle* Triangle, bit32 VertexID,
             vec3 C = Triangle->E[CInd].Position;
             vec3 First = ClosestPointBetweenTwoLines(LinePointA, LinePointB, Result, B);
             Result = ClosestPointBetweenTwoLines(LinePointA, LinePointB, Result, C);
-            if(First != INVALID_VECTOR_3)
+            First += LinePointA;
+            Result += LinePointA;
+            if(First != INVALID_VECTOR_3 && !OutOfAllPlanes(RegionCheck(First, BottomClipPlane, TopClipPlane, LeftClipPlane, RightClipPlane, NearClipPlane, FarClipPlane)))
+                //if(First != INVALID_VECTOR_3)
             {
                 if(Result != INVALID_VECTOR_3)
                 {//2 valid vertexes, so definitely go ahead and write the first.

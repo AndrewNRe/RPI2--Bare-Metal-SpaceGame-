@@ -6,6 +6,7 @@ extern "C" void SDK_CHECK_IF_INTTERUPT();
 extern "C" f32 sinf(f32 a);
 extern "C" f32 cosf(f32 a);
 extern "C" void* memset(void* dest, int c, size_t count);
+extern "C" void* memcpy(void *dest, const void *src, size_t count);
 #else
 void SDK_BLINKBOARD(bit32 number_of_flashes);
 void SDK_CHECK_IF_INTTERUPT();

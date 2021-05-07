@@ -94,4 +94,17 @@ void* memset(void* dest, int c, size_t count)
     char* Dest = (char*)dest;
     for(size_t b = 0; b < count; b++)
     { Dest[b] = c; }
+    return dest;
+}
+
+void* memcpy(void* dest, const void* src, size_t count)
+{
+    char* Dest = (char*)dest;
+    char* Src = (char*)src;
+    for(bit32 b = 0;
+        b < count;
+        b++)
+    {
+        *Dest++ = *Src++;
+    }
 }
