@@ -21,6 +21,7 @@ struct scanline_triangle
     bit32 Color;
     bit32 TriangleID;
     //vec2 PostDiv[3];
+    bit32 BranchID;
     vec3 PreDiv[3];
     union
     {

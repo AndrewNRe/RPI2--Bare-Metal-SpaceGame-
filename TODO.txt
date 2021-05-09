@@ -18,5 +18,5 @@ C: Correct GJK to be more correct.
 
 F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
 
-5/7/21 -
--Need to fix what appears to be a clipping bug.
+5/9/21 -
+Current bug is the winding of all cases beyond 3 generated vertexes.

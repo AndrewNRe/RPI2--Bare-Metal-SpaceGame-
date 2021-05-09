@@ -23,7 +23,8 @@ bit32 RegionCheck(vec3 Position,
 }
 
 //#define OutOfAllPlanes(Region) ( ((Region & REGION_X_OUT) && (Region & REGION_Y_OUT)) || (Region & REGION_Z_OUT))
-#define OutOfAllPlanes(Region) ( ((Region) & REGION_X_OUT) && ((Region) & REGION_Y_OUT) && ((Region) & REGION_Z_OUT) )
+//#define OutOfAllPlanes(Region) ( ((Region) & REGION_X_OUT) && ((Region) & REGION_Y_OUT) && ((Region) & REGION_Z_OUT) )
+#define OutOfAllPlanes(Region) ( (Region & REGION_X_OUT) || (Region & REGION_Y_OUT) || (Region & REGION_Z_OUT))
 
 bit32 SubdivideTriangle(memory_block* Block, triangle* Triangle, bit32 VertexID, bit32 Region,
                         vertex* VertexArray, bit32 Base,
@@ -45,7 +46,6 @@ bit32 SubdivideTriangle(memory_block* Block, triangle* Triangle, bit32 VertexID,
             Result.y = (Region & 0x4) ? BottomClipPlane : TopClipPlane;
             if(Region & 0x30)
             {
-                SDK_BLINKBOARD(1);
                 Result.z = (Region & 0x10) ? NearClipPlaneOffset : FarClipPlane;
             }
         }
