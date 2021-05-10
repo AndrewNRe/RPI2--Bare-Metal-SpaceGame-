@@ -27,7 +27,7 @@ bit32 RegionCheck(vec3 Position,
 #define OutOfAllPlanes(Region) ( (Region & REGION_X_OUT) || (Region & REGION_Y_OUT) || (Region & REGION_Z_OUT))
 
 bit32 SubdivideTriangle(memory_block* Block, triangle* Triangle, bit32 VertexID, bit32 Region,
-                        vertex* VertexArray, bit32 Base,
+                        vertex* VertexArray, bit32 CV,
                         f32 BottomClipPlane, f32 TopClipPlane,
                         f32 LeftClipPlane, f32 RightClipPlane,
                         f32 NearClipPlane, f32 FarClipPlane)
@@ -90,9 +90,8 @@ bit32 SubdivideTriangle(memory_block* Block, triangle* Triangle, bit32 VertexID,
             {
                 if(Result != INVALID_VECTOR_3)
                 {//2 valid vertexes, so definitely go ahead and write the first.
-                    vertex* Current = PushStruct(Block, vertex, MemoryFlag_NoAlign);
-                    (*Current).Position = First;
-                    (*Current).Color = Color;
+                    VertexArray[CV].Position = First;
+                    VertexArray[CV].Color = Color;
                     VertexDataWrote++;
                 }
                 else
@@ -107,8 +106,7 @@ bit32 SubdivideTriangle(memory_block* Block, triangle* Triangle, bit32 VertexID,
     }
     //else //Vertex was completely within all possible clip planes and thus, is an "early out".
     {//All cases will generate at least one vertex!!!
-        vertex* Current = PushStruct(Block, vertex, MemoryFlag_NoAlign);
-        (*Current) = CheckVertex;
+        VertexArray[CV] = CheckVertex;
         VertexDataWrote++;
     }
     return VertexDataWrote;

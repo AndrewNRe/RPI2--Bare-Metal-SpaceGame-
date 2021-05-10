@@ -153,6 +153,13 @@ inline bit32 Platform_GetInput()
     return inputvalue;
 }
 
+void WindTriangle(triangle* Triangle, bit32* CurrentTriangle,  vertex* VertexArray, bit32 A, bit32 B, bit32 C)
+{
+    Triangle[(*CurrentTriangle)].E[0] = VertexArray[A];
+    Triangle[(*CurrentTriangle)].E[1] = VertexArray[B];
+    Triangle[(*CurrentTriangle)].E[2] = VertexArray[C];
+    (*CurrentTriangle)++;
+}
 
 inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatform, memory_block* Block, camera* Camera, bit32* PrintXLine, bit32* PrintYLine)
 {
@@ -231,11 +238,8 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                     if(CV == 3)
                     {
                         Triangle = PushStruct(Block, triangle, MemoryFlag_NoAlign);
-                        Triangle[TriangleCount].E[0] = VertexArray[0];
-                        Triangle[TriangleCount].E[1] = VertexArray[1];
-                        Triangle[TriangleCount].E[2] = VertexArray[2];
+                        WindTriangle(Triangle, &TriangleCount, VertexArray, 0, 1, 2);
                         BranchID = 3;
-                        TriangleCount++;
                     }
                     else if(CV == 4)
                     {
@@ -243,38 +247,20 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                         Triangle = PushArray(Block, Count, triangle, MemoryFlag_NoAlign);
                         if(Region[0])
                         {//A
-                            Triangle[TriangleCount].E[0] = VertexArray[1];
-                            Triangle[TriangleCount].E[1] = VertexArray[0];
-                            Triangle[TriangleCount].E[2] = VertexArray[2];
-                            TriangleCount++;
-                            Triangle[TriangleCount].E[0] = VertexArray[1];
-                            Triangle[TriangleCount].E[1] = VertexArray[2];
-                            Triangle[TriangleCount].E[2] = VertexArray[3];
-                            TriangleCount++;
+                            WindTriangle(Triangle, &TriangleCount, VertexArray, 1, 0, 2);
+                            WindTriangle(Triangle, &TriangleCount, VertexArray, 1, 2, 3);
                         }
                         else
                         {
                             if(Region[1])
                             {//b
-                                Triangle[TriangleCount].E[0] = VertexArray[1];
-                                Triangle[TriangleCount].E[1] = VertexArray[0];
-                                Triangle[TriangleCount].E[2] = VertexArray[2];
-                                TriangleCount++;
-                                Triangle[TriangleCount].E[0] = VertexArray[0];
-                                Triangle[TriangleCount].E[1] = VertexArray[1];
-                                Triangle[TriangleCount].E[2] = VertexArray[3];
-                                TriangleCount++;
+                                WindTriangle(Triangle, &TriangleCount, VertexArray, 1, 0, 2);
+                                WindTriangle(Triangle, &TriangleCount, VertexArray, 0, 1, 3);
                             }
                             else
                             {//c
-                                Triangle[TriangleCount].E[0] = VertexArray[0];
-                                Triangle[TriangleCount].E[1] = VertexArray[1];
-                                Triangle[TriangleCount].E[2] = VertexArray[2];
-                                TriangleCount++;
-                                Triangle[TriangleCount].E[0] = VertexArray[1];
-                                Triangle[TriangleCount].E[1] = VertexArray[3];
-                                Triangle[TriangleCount].E[2] = VertexArray[2];
-                                TriangleCount++;
+                                WindTriangle(Triangle, &TriangleCount, VertexArray, 0, 1, 2);
+                                WindTriangle(Triangle, &TriangleCount, VertexArray, 1, 3, 2);
                             }
                         }//if a or else end
                         BranchID = 4;
@@ -285,50 +271,23 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                         Triangle = PushArray(Block, Count, triangle, MemoryFlag_NoAlign);
                         if(Region[0] && Region[1])
                         {//AB
-                            Triangle[TriangleCount].E[0] = VertexArray[0];
-                            Triangle[TriangleCount].E[1] = VertexArray[3];
-                            Triangle[TriangleCount].E[2] = VertexArray[1];
-                            TriangleCount++;
-                            Triangle[TriangleCount].E[0] = VertexArray[3];
-                            Triangle[TriangleCount].E[1] = VertexArray[2];
-                            Triangle[TriangleCount].E[2] = VertexArray[1];
-                            TriangleCount++;
-                            Triangle[TriangleCount].E[0] = VertexArray[2];
-                            Triangle[TriangleCount].E[1] = VertexArray[4];
-                            Triangle[TriangleCount].E[2] = VertexArray[1];
-                            TriangleCount++;
+                            WindTriangle(Triangle, &TriangleCount, VertexArray, 0, 3, 1);
+                            WindTriangle(Triangle, &TriangleCount, VertexArray, 3, 2, 1);
+                            WindTriangle(Triangle, &TriangleCount, VertexArray, 2, 4, 1);
                         }
                         else
                         {
                             if(Region[1] && Region[2])
                             {//BC
-                                Triangle[TriangleCount].E[0] = VertexArray[0];
-                                Triangle[TriangleCount].E[1] = VertexArray[2];
-                                Triangle[TriangleCount].E[2] = VertexArray[1];
-                                TriangleCount++;
-                                Triangle[TriangleCount].E[0] = VertexArray[0];
-                                Triangle[TriangleCount].E[1] = VertexArray[1];
-                                Triangle[TriangleCount].E[2] = VertexArray[3];
-                                TriangleCount++;
-                                Triangle[TriangleCount].E[0] = VertexArray[1];
-                                Triangle[TriangleCount].E[1] = VertexArray[4];
-                                Triangle[TriangleCount].E[2] = VertexArray[3];
-                                TriangleCount++;
+                                WindTriangle(Triangle, &TriangleCount, VertexArray, 0, 2, 1);
+                                WindTriangle(Triangle, &TriangleCount, VertexArray, 0, 1, 3);
+                                WindTriangle(Triangle, &TriangleCount, VertexArray, 1, 4, 3);
                             }
                             else
                             {//AC or CA (not totally sure what's technically geometrically correct but similar difference I suppose)
-                                Triangle[TriangleCount].E[0] = VertexArray[1];
-                                Triangle[TriangleCount].E[1] = VertexArray[0];
-                                Triangle[TriangleCount].E[2] = VertexArray[2];
-                                TriangleCount++;
-                                Triangle[TriangleCount].E[0] = VertexArray[1];
-                                Triangle[TriangleCount].E[1] = VertexArray[2];
-                                Triangle[TriangleCount].E[2] = VertexArray[3];
-                                TriangleCount++;
-                                Triangle[TriangleCount].E[0] = VertexArray[3];
-                                Triangle[TriangleCount].E[1] = VertexArray[2];
-                                Triangle[TriangleCount].E[2] = VertexArray[4];
-                                TriangleCount++;
+                                WindTriangle(Triangle, &TriangleCount, VertexArray, 1, 0, 2);
+                                WindTriangle(Triangle, &TriangleCount, VertexArray, 1, 2, 3);
+                                WindTriangle(Triangle, &TriangleCount, VertexArray, 3, 2, 4);
                             }
                         }
                         BranchID = 5;
@@ -337,28 +296,16 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                     {
                         bit32 Count = 4;
                         Triangle = PushArray(Block, Count, triangle, MemoryFlag_NoAlign);
-                        Triangle[TriangleCount].E[0] = VertexArray[0];
-                        Triangle[TriangleCount].E[1] = VertexArray[3];
-                        Triangle[TriangleCount].E[2] = VertexArray[1];
-                        TriangleCount++;
-                        Triangle[TriangleCount].E[0] = VertexArray[3];
-                        Triangle[TriangleCount].E[1] = VertexArray[2];
-                        Triangle[TriangleCount].E[2] = VertexArray[5];
-                        TriangleCount++;
-                        Triangle[TriangleCount].E[0] = VertexArray[5];
-                        Triangle[TriangleCount].E[1] = VertexArray[4];
-                        Triangle[TriangleCount].E[2] = VertexArray[1];
-                        TriangleCount++;
-                        Triangle[TriangleCount].E[0] = VertexArray[1];
-                        Triangle[TriangleCount].E[1] = VertexArray[3];
-                        Triangle[TriangleCount].E[2] = VertexArray[5];
+                        WindTriangle(Triangle, &TriangleCount, VertexArray, 1, 0, 3);
+                        WindTriangle(Triangle, &TriangleCount, VertexArray, 1, 3, 2);
+                        WindTriangle(Triangle, &TriangleCount, VertexArray, 1, 2, 5);
+                        WindTriangle(Triangle, &TriangleCount, VertexArray, 1, 5, 4);
                         BranchID = 6;
-                        TriangleCount++;
                     }
                     
                     for(bit32 t = 0;
                         t < TriangleCount;
-                        CurrentScanlineTriangle++, t++, Triangle++)
+                        CurrentScanlineTriangle++, t++)
                     {
                         ScanlineTriangleStart[CurrentScanlineTriangle].Z = 0;
                         for(bit32 v = 0, s = 0;
@@ -367,15 +314,15 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                         {
                             vec2 ZDivTriangle;
                             const f32 RemoveQuadrantOne = 0.5f;
-                            ZDivTriangle.x = clamp(0.0f, ((XFocalPoint * Triangle->E[v].Position.x) / Triangle->E[v].Position.z) + RemoveQuadrantOne, 1.0f);
-                            ZDivTriangle.y = clamp(0.0f, ((YFocalPoint * Triangle->E[v].Position.y) / Triangle->E[v].Position.z) + RemoveQuadrantOne, 1.0f);
-                            ScanlineTriangleStart[CurrentScanlineTriangle].Z += Triangle->E[v].Position.z; //Add this Z to get barycentric value of Z at the end!
+                            ZDivTriangle.x = clamp(0.0f, ((XFocalPoint * Triangle[t].E[v].Position.x) / Triangle[t].E[v].Position.z) + RemoveQuadrantOne, 1.0f);
+                            ZDivTriangle.y = clamp(0.0f, ((YFocalPoint * Triangle[t].E[v].Position.y) / Triangle[t].E[v].Position.z) + RemoveQuadrantOne, 1.0f);
+                            ScanlineTriangleStart[CurrentScanlineTriangle].Z += Triangle[t].E[v].Position.z; //Add this Z to get barycentric value of Z at the end!
                             ScanlineTriangleStart[CurrentScanlineTriangle].E[s] = ZDivTriangle.x * (f32)SCREEN_X;
                             ScanlineTriangleStart[CurrentScanlineTriangle].E[s+1] = ZDivTriangle.y * (f32)SCREEN_Y;
-                            ScanlineTriangleStart[CurrentScanlineTriangle].Color = Triangle->E[v].Color;
+                            ScanlineTriangleStart[CurrentScanlineTriangle].Color = Triangle[t].E[v].Color;
                             //ScanlineTriangleStart[CurrentScanlineTriangle].PostDiv[v] = ZDivTriangle;
                             ScanlineTriangleStart[CurrentScanlineTriangle].BranchID = BranchID;
-                            ScanlineTriangleStart[CurrentScanlineTriangle].PreDiv[v] = Triangle->E[v].Position;
+                            ScanlineTriangleStart[CurrentScanlineTriangle].PreDiv[v] = Triangle[t].E[v].Position;
                             s+=2;
                         }
                         ScanlineTriangleStart[CurrentScanlineTriangle].Z *= .5f; //Finish up getting the barycentric Z value between all the 3 vertexes on the triangle.
