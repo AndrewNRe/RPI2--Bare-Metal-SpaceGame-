@@ -40,16 +40,16 @@ bit32 SubdivideTriangle(memory_block* Block, triangle* Triangle, bit32 VertexID,
         vec3 Result = CheckVertex.Position;
         bit32 Color = CheckVertex.Color;
         //First test to see if you're out of 2 planes at once.
-        if(Region & 0x3 && Region & 0x12)
+        if(Region & 0x3 && Region & 0xC)
         {//XY double out
             Result.x = (Region & 0x1) ? LeftClipPlane : RightClipPlane;
             Result.y = (Region & 0x4) ? BottomClipPlane : TopClipPlane;
             if(Region & 0x30)
-            {
+            {//Also Z if this branch is hit.
                 Result.z = (Region & 0x10) ? NearClipPlaneOffset : FarClipPlane;
             }
         }
-        else if(Region & 0x12 && Region & 0x30)
+        else if(Region & 0xC && Region & 0x30)
         {//YZ double out
             Result.y = (Region & 0x4) ? BottomClipPlane : TopClipPlane;
             Result.z = (Region & 0x10) ? NearClipPlaneOffset : FarClipPlane;
@@ -67,14 +67,14 @@ bit32 SubdivideTriangle(memory_block* Block, triangle* Triangle, bit32 VertexID,
                 LinePointA.x = LeftClipPlane;
                 LinePointB.x = RightClipPlane;
             }
-            else if(Region & 0x12)
+            else if(Region & 0xC)
             {//Y
                 LinePointA.y = BottomClipPlane;
                 LinePointB.y = TopClipPlane;
             }
             else// if(Region & 0x30)
             {//Z
-                LinePointA.z = NearClipPlane;
+                LinePointA.z = NearClipPlaneOffset;
                 LinePointB.z = FarClipPlane;
             }
             bit32 BInd = (VertexID == 2) ? 0 : VertexID+1;
@@ -83,24 +83,10 @@ bit32 SubdivideTriangle(memory_block* Block, triangle* Triangle, bit32 VertexID,
             vec3 C = Triangle->E[CInd].Position;
             vec3 First = ClosestPointBetweenTwoLines(LinePointA, LinePointB, Result, B);
             Result = ClosestPointBetweenTwoLines(LinePointA, LinePointB, Result, C);
-            First += LinePointA;
-            Result += LinePointA;
-            if(First != INVALID_VECTOR_3 && !OutOfAllPlanes(RegionCheck(First, BottomClipPlane, TopClipPlane, LeftClipPlane, RightClipPlane, NearClipPlane, FarClipPlane)))
-                //if(First != INVALID_VECTOR_3)
-            {
-                if(Result != INVALID_VECTOR_3)
-                {//2 valid vertexes, so definitely go ahead and write the first.
-                    VertexArray[CV].Position = First;
-                    VertexArray[CV].Color = Color;
-                    VertexDataWrote++;
-                }
-                else
-                {
-                    Result = First; //Want to just write the first.
-                }
-            }
+            VertexArray[CV].Position = First;
+            VertexArray[CV].Color = Color;
+            VertexDataWrote++;
         }
-        VertexDataWrote++;
         CheckVertex.Position = Result;
         CheckVertex.Color = Color;
     }

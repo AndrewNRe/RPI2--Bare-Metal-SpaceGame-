@@ -18,5 +18,5 @@ C: Correct GJK to be more correct.
 
 F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
 
-5/10/21 -
+5/12/21 -
 It would look like the current bug is really jsut with the way i'm clamping to planes or something like that. So i'd look there first.

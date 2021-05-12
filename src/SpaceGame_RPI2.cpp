@@ -484,8 +484,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         Camera.OrbitPosition = CurrentPlayer.Transform.Translation;
         Camera.RotatePair.x = CurrentPlayer.Transform.RotationAxes.y;
         Camera.RotatePair.y = CurrentPlayer.Transform.RotationAxes.x;
-        f32 FMZ = CurrentPlayer.Transform.Translation.z - 25;
-        PrintFloat(&FMZ, &PrintXLine, &PrintYLine, true);
+        PrintFloat(&CurrentPlayer.Transform.Translation.z, &PrintXLine, &PrintYLine, true);
         f32 InDegrees = Degrees(CurrentPlayer.Transform.RotationAxes.y);
         PrintFloat(&InDegrees, &PrintXLine, &PrintYLine, true);
         
