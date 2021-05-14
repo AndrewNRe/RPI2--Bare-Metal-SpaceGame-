@@ -567,8 +567,8 @@ vec3 ClosestPointBetweenTwoLines(vec3 A0, vec3 A1, vec3 B0, vec3 B1) //NOTE: Or 
         
         //vec3 ResultA = A0 + AV * s;
         //vec3 ResultB = B0 + BV * t; //NOTE: Basically, this will give you two points that are where on the two segments you'd be closest to.
-        //I am taking ResultB in this case, because I usually just send the clip planes as the first two parameters and thus, ResultB would be the most accurate.
-        Result = B0 + BV * t;
+        //It would appear taht if you add the two together, you get the most correct result.
+        Result = (A0 + AV * s) + (B0 + BV * t);
     }
     else
     {//both segments degenerate into points so invalid to return.

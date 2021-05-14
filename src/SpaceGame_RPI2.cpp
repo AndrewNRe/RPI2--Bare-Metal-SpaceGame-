@@ -214,7 +214,6 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                 for(bit32 v = 0; v < NUMBER_OF_VERTEXES_IN_TRIANGLE; v++)
                 {//Per vertex, test to see what planes it is outside of.
                     vec3 Position = BaseTriangle.E[v].Position = vec4tovec3(Transform * vec3tovec4(BaseTriangle.E[v].Position, 1.0f)); //Transform the position.;
-                    
                     Region[v] = RegionCheck(Position, BottomClipPlane, TopClipPlane, LeftClipPlane, RightClipPlane, NearClipPlane, FarClipPlane);
                 }
                 
@@ -226,7 +225,7 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
                         v < NUMBER_OF_VERTEXES_IN_TRIANGLE;
                         v++, Shift += 2)
                     {
-                        CV += SubdivideTriangle(Block, &BaseTriangle, v, Region[v], VertexArray, CV,
+                        CV += SubdivideTriangle(Block, &BaseTriangle.E[v], Region[v],
                                                 BottomClipPlane, TopClipPlane,
                                                 LeftClipPlane, RightClipPlane,
                                                 NearClipPlane, FarClipPlane);

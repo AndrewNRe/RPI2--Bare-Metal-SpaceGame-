@@ -26,74 +26,51 @@ bit32 RegionCheck(vec3 Position,
 //#define OutOfAllPlanes(Region) ( ((Region) & REGION_X_OUT) && ((Region) & REGION_Y_OUT) && ((Region) & REGION_Z_OUT) )
 #define OutOfAllPlanes(Region) ( (Region & REGION_X_OUT) || (Region & REGION_Y_OUT) || (Region & REGION_Z_OUT))
 
-bit32 SubdivideTriangle(memory_block* Block, triangle* Triangle, bit32 VertexID, bit32 Region,
-                        vertex* VertexArray, bit32 CV,
+bit32 WriteVertex(memory_block* Block, vertex VertexToWrite)
+{
+    bit32 CreatedVertexCount = 0;
+    vertex* NewVertex = PushStruct(Block, vertex, MemoryFlag_NoAlign);
+    (*NewVertex) = VertexToWrite;
+    CreatedVertexCount++;
+    return CreatedVertexCount;
+}
+
+bit32 SubdivideTriangle(memory_block* Block, vertex* Current, bit32 Region,
                         f32 BottomClipPlane, f32 TopClipPlane,
                         f32 LeftClipPlane, f32 RightClipPlane,
                         f32 NearClipPlane, f32 FarClipPlane)
 {
-    bit32 VertexDataWrote = 0;
-    vertex CheckVertex = Triangle->E[VertexID];
+    bit32 CreatedVertexCount = 0;
     if(Region)
     {
-        bit32 NearClipPlaneOffset = NearClipPlane + 0.1f;
-        vec3 Result = CheckVertex.Position;
-        bit32 Color = CheckVertex.Color;
-        //First test to see if you're out of 2 planes at once.
-        if(Region & 0x3 && Region & 0xC)
-        {//XY double out
-            Result.x = (Region & 0x1) ? LeftClipPlane : RightClipPlane;
-            Result.y = (Region & 0x4) ? BottomClipPlane : TopClipPlane;
-            if(Region & 0x30)
-            {//Also Z if this branch is hit.
-                Result.z = (Region & 0x10) ? NearClipPlaneOffset : FarClipPlane;
-            }
+        if(Region & 0x1)
+        {//Left
+            CreatedVertexCount += WriteVertex(Block, {LeftClipPlane, Current->Position.y, Current->Position.z, Current->Color});
         }
-        else if(Region & 0xC && Region & 0x30)
-        {//YZ double out
-            Result.y = (Region & 0x4) ? BottomClipPlane : TopClipPlane;
-            Result.z = (Region & 0x10) ? NearClipPlaneOffset : FarClipPlane;
+        else if(Region & 0x2)
+        {//Right
+            CreatedVertexCount += WriteVertex(Block, {RightClipPlane, Current->Position.y, Current->Position.z, Current->Color});
         }
-        else if(Region & 0x30 && Region & 0x3)
-        {//ZX double out
-            Result.z = (Region & 0x10) ? NearClipPlaneOffset : FarClipPlane;
-            Result.x = (Region & 0x1) ? LeftClipPlane : RightClipPlane;
+        
+        if(Region & 0x4)
+        {//Bottom
+            CreatedVertexCount += WriteVertex(Block, {Current->Position.x, BottomClipPlane, Current->Position.z, Current->Color});
         }
-        else
-        {//Was valid except for one set of planes relating to a given axis. So you just want to figure out where along that line the vector would go if intersecting the line the two planes form!
-            vec3 LinePointA = {0.0f, 0.0f, 0.0f}; vec3 LinePointB = {0.0f, 0.0f, 0.0f};
-            if(Region & 0x3)
-            {//X
-                LinePointA.x = LeftClipPlane;
-                LinePointB.x = RightClipPlane;
-            }
-            else if(Region & 0xC)
-            {//Y
-                LinePointA.y = BottomClipPlane;
-                LinePointB.y = TopClipPlane;
-            }
-            else// if(Region & 0x30)
-            {//Z
-                LinePointA.z = NearClipPlaneOffset;
-                LinePointB.z = FarClipPlane;
-            }
-            bit32 BInd = (VertexID == 2) ? 0 : VertexID+1;
-            bit32 CInd = (BInd == 2) ? 0 : BInd+1;
-            vec3 B = Triangle->E[BInd].Position;
-            vec3 C = Triangle->E[CInd].Position;
-            vec3 First = ClosestPointBetweenTwoLines(LinePointA, LinePointB, Result, B);
-            Result = ClosestPointBetweenTwoLines(LinePointA, LinePointB, Result, C);
-            VertexArray[CV].Position = First;
-            VertexArray[CV].Color = Color;
-            VertexDataWrote++;
+        else if(Region & 0x8)
+        {//Top
+            CreatedVertexCount += WriteVertex(Block, {Current->Position.x, TopClipPlane, Current->Position.z, Current->Color});
         }
-        CheckVertex.Position = Result;
-        CheckVertex.Color = Color;
+        
+        if(Region & 0x10)
+        {//Near
+            CreatedVertexCount += WriteVertex(Block, {Current->Position.x, Current->Position.y, NearClipPlane - 0.1f, Current->Color});
+        }
+        else if(Region & 0x20)
+        {//Far
+            CreatedVertexCount += WriteVertex(Block, {Current->Position.x, Current->Position.y, FarClipPlane, Current->Color});
+        }
     }
-    //else //Vertex was completely within all possible clip planes and thus, is an "early out".
-    {//All cases will generate at least one vertex!!!
-        VertexArray[CV] = CheckVertex;
-        VertexDataWrote++;
-    }
-    return VertexDataWrote;
+    else
+    { CreatedVertexCount += WriteVertex(Block, (*Current)); }
+    return CreatedVertexCount;
 }

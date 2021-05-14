@@ -18,5 +18,7 @@ C: Correct GJK to be more correct.
 
 F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
 
-5/12/21 -
-It would look like the current bug is really jsut with the way i'm clamping to planes or something like that. So i'd look there first.
+5/14/21 -
+Clipping finally works!!!
+Should look into the weird Z bug, surely just something with the Z division and my misunderstanding of something related to that and what not.
+Otherwise, whoever reads this and wants to do something with this project can move onto game code again!!!
