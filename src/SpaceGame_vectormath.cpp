@@ -462,12 +462,13 @@ inline void transpose_mat4(mat4x4* A)
 
 inline vec3 lerp_vec3(vec3 a, vec3 b, f32 progression)
 {
-    vec3 result;
-    result.x = a.x + (b.x - a.x) * progression;
-    result.y = a.y + (b.y - a.y) * progression;
-    result.z = a.z + (b.z - a.z) * progression;
-    return result;
+    vec3 Result = {};
+    Result.x = a.x + (b.x - a.x) * progression;
+    Result.y = a.y + (b.y - a.y) * progression;
+    Result.z = a.z + (b.z - a.z) * progression;
+    return Result;
 } 
+
 
 inline vec3 normalize_vec3(vec3 A)
 {
@@ -489,17 +490,6 @@ inline mat3x3 RotationMatrix(vec3 RotationAxes)
 {
     mat3x3 Result;
     Result = rotate3x3Z(RotationAxes.z) * rotate3x3Y(RotationAxes.y) * rotate3x3X(RotationAxes.x); //NOTE: Right handed coordinate system. +X right, +Y up, +Z out.
-    return Result;
-}
-
-inline mat4x4 RotationAxesAndTranslationToMat4x4(world_transform Transform)
-{
-    mat3x3 m3 = RotationMatrix(Transform.RotationAxes);
-    mat4x4 Result;
-    Result.d[0][0] = m3.d[0][0]; Result.d[0][1] = m3.d[0][1]; Result.d[0][2] = m3.d[0][2]; Result.d[0][3] = Transform.Translation.x;
-    Result.d[1][0] = m3.d[1][0]; Result.d[1][1] = m3.d[1][1]; Result.d[1][2] = m3.d[1][2]; Result.d[1][3] = Transform.Translation.y;
-    Result.d[2][0] = m3.d[2][0]; Result.d[2][1] = m3.d[2][1]; Result.d[2][2] = m3.d[2][2]; Result.d[2][3] = Transform.Translation.z;
-    Result.d[3][0] = 0.0f; Result.d[3][1] = 0.0f; Result.d[3][2] = 0.0f; Result.d[3][3] = 1.0f;
     return Result;
 }
 

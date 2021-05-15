@@ -5,6 +5,8 @@ A: Change the code to follow my current code style.
 -Get rid of all globals except maybe memory dependent on what you want to do there. It's in the game code layer, so the way you do memory will be the same on all 
 platforms in this case. As such, I think doing something more robust, or requiring that you have a memory structure per allocation would be best.
 
+Before B: Should look into the weird Z bug, surely just something with the Z division and my misunderstanding of something related to that and what not.
+
 B: "multithread" the software renderer.
 -Need to ensure that I can use the other 3 cores.
 -Need a way to break the framebuffer up into chunks.
@@ -17,8 +19,7 @@ C: Correct GJK to be more correct.
 -If someone else is doing this, the video I used to understand GJK was Casey Muratori's video: https://www.youtube.com/watch?v=Qupqu1xe7Io
 
 F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
+Also, should make it so the render routine stores a buffer and just pushes all render letters in a render letter pass to draw on top of everything in the game!
 
-5/14/21 -
-Clipping finally works!!!
-Should look into the weird Z bug, surely just something with the Z division and my misunderstanding of something related to that and what not.
-Otherwise, whoever reads this and wants to do something with this project can move onto game code again!!!
+5/15/21 -
+-Try adding more targets or more platform instances next!

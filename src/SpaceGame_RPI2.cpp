@@ -30,8 +30,8 @@ bit32 collisionDEBUG_multiplier = 0;
 //NOTE: game code includes
 #include <SpaceGame_utility.cpp>
 #include <SpaceGame_Memory.h>
-#include <SpaceGame_world.h>
 #include <SpaceGame_vectormath.cpp>
+#include <SpaceGame_world.h>
 #include <SpaceGame_Graphics.h>
 #include <SpaceGame_Graphics.cpp>
 #include <SpaceGame_templeplatform.cpp>
@@ -194,11 +194,13 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     {//Draw a the current temple platform instance
         temple_platform_instance* Current = &TemplePlatform->Instance[ti];
         
+        world_transform FinalTransform = InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->Timer);
+        PrintFloat(&Current->Timer, PrintXLine, PrintYLine, true);
+        TemplePlatformIncrementTimer(&Current->Timer, Current->Increment);
+        
         f32 Height = 0.0f;
         for(bit32 b = 0; b < 2; b++, Height = Current->CeilingHeight)
         {//Draw the two box meshes to make the true platform.
-            
-            world_transform FinalTransform = Current->Transform;
             FinalTransform.Translation.y += Height;
             mat4x4 WorldTransform = RotationAxesAndTranslationToMat4x4(FinalTransform);
             
@@ -341,13 +343,15 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
         }//Draw the box mesh end routine
     }//End draw temple platform instance routine
     
+#if 0
     PrintInteger(&CurrentScanlineTriangle, PrintXLine, PrintYLine, true);
+#endif
     
     for(bit32 s = 0; s < CurrentScanlineTriangle; s++)
     {
+#if 0
         PrintInteger(&ScanlineTriangleStart[s].TriangleID, PrintXLine, PrintYLine, false);
         PrintInteger(&ScanlineTriangleStart[s].BranchID, PrintXLine, PrintYLine, false);
-#if 1
         PrintFloat(&ScanlineTriangleStart[s].PreDiv[0].x, PrintXLine, PrintYLine, false);
         PrintFloat(&ScanlineTriangleStart[s].PreDiv[0].y, PrintXLine, PrintYLine, false);
         PrintFloat(&ScanlineTriangleStart[s].PreDiv[0].z, PrintXLine, PrintYLine, false);
@@ -357,14 +361,6 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
         PrintFloat(&ScanlineTriangleStart[s].PreDiv[2].x, PrintXLine, PrintYLine, false);
         PrintFloat(&ScanlineTriangleStart[s].PreDiv[2].y, PrintXLine, PrintYLine, false);
         PrintFloat(&ScanlineTriangleStart[s].PreDiv[2].z, PrintXLine, PrintYLine, true);
-#else
-        PrintFloat(&ScanlineTriangleStart[s].Z, PrintXLine, PrintYLine, false);
-        PrintFloat(&ScanlineTriangleStart[s].PostDiv[0].x, PrintXLine, PrintYLine, false);
-        PrintFloat(&ScanlineTriangleStart[s].PostDiv[0].y, PrintXLine, PrintYLine, false);
-        PrintFloat(&ScanlineTriangleStart[s].PostDiv[1].x, PrintXLine, PrintYLine, false);
-        PrintFloat(&ScanlineTriangleStart[s].PostDiv[1].y, PrintXLine, PrintYLine, false);
-        PrintFloat(&ScanlineTriangleStart[s].PostDiv[2].x, PrintXLine, PrintYLine, false);
-        PrintFloat(&ScanlineTriangleStart[s].PostDiv[2].y, PrintXLine, PrintYLine, true);
 #endif
 #if 1
         SoftwareDrawTriangle(ScanlineTriangleStart[s].A.x, ScanlineTriangleStart[s].A.y,
@@ -420,8 +416,17 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         {//Start of setting up the temple platform instances
             TemplePlatform.Instance = PushArray(&MainBlock, DESIRED_TEMPLE_PLATFORM_COUNT, temple_platform_instance, MemoryFlag_Pow2Align | MemoryFlag_ClearToZero);
             bit32 p = 0;
-            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0, 20.0f, {-2.0f, 1.0f, 0.0f}, {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}}); p++;
-            //TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0, 20.0f, {2.0f, -1.0f, 0.0f}, {{0.0f, 0.0f, 2.0f}, {0.0f, 0.0f, 0.0f}}); p++;
+            //TODO(Andrew) At some point, figure out why I cannot initalize a world transform properly via an initializer list! It is 100% something wrong with the generated
+            //assembly!!!
+            world_transform A = {};
+            A.Translation.x = -30.0f;
+            A.Translation.y = -10.0f;
+            A.Translation.z = 10.0f;
+            world_transform B = {};
+            B.Translation.x = 30.0f;
+            B.Translation.y = 10.0f;
+            B.Translation.z = -10.0f;
+            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0.0f, 0.01f, 20.0f, A, B); p++;
             TemplePlatform.InstanceCount = p;
         }//End of setting up the temple platform instances
         
@@ -472,21 +477,22 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     CurrentPlayer.Transform.Translation.y = 6.0f;
     CurrentPlayer.Transform.Translation.z = 65.0f;
     CurrentPlayer.Transform.RotationAxes = {0.0f, 0.0f, 0.0f};
+    
     for(;;)
     {
         bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
-        //AFter, like do something with collision on that player structure.
-        //Finally, that's pretty much the old game after you get the platforms moving!!!
-        CurrentPlayer.Transform.Translation.z -= 0.1f;
-        //CurrentPlayer.Transform.RotationAxes.y += Radians(0.5f);
-        if(CurrentPlayer.Transform.RotationAxes.y >= PI32*2) { CurrentPlayer.Transform.RotationAxes.y = 0.0f; }
+        
+        for(bit32 i = 0;
+            i < TemplePlatform.InstanceCount;
+            i++)
+        {
+            TemplePlatform.Instance;
+        }
+        
+        
         Camera.OrbitPosition = CurrentPlayer.Transform.Translation;
         Camera.RotatePair.x = CurrentPlayer.Transform.RotationAxes.y;
         Camera.RotatePair.y = CurrentPlayer.Transform.RotationAxes.x;
-        PrintFloat(&CurrentPlayer.Transform.Translation.z, &PrintXLine, &PrintYLine, true);
-        f32 InDegrees = Degrees(CurrentPlayer.Transform.RotationAxes.y);
-        PrintFloat(&InDegrees, &PrintXLine, &PrintYLine, true);
-        
         memory_block TemporaryStack = PushNewBlock(&TemporaryBlock, Kilobytes(29));
         Platform_Render(0xFF000000, &TemplePlatform, &TemporaryStack, &Camera, &PrintXLine, &PrintYLine);
         DeleteBlock(&TemporaryBlock, &TemporaryStack);

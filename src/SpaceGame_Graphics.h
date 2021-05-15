@@ -19,10 +19,10 @@ struct scanline_triangle
 {
     f32 Z; //NOTE: Rough approximation of where the triangle actually is because I want to go fast and not really care too much as of 4/9/21
     bit32 Color;
-    bit32 TriangleID;
-    //vec2 PostDiv[3];
-    bit32 BranchID;
-    vec3 PreDiv[3];
+    bit32 TriangleID; //TODO(Andrew) Delete this because it's debug info at some point or compile it out and in using a debug switch!
+    //vec2 PostDiv[3] //TODO(Andrew) Delete this because it's debug info at some point or compile it out and in using a debug switch!;
+    bit32 BranchID; //TODO(Andrew) Delete this because it's debug info at some point or compile it out and in using a debug switch!4
+    vec3 PreDiv[3]; //TODO(Andrew) Delete this because it's debug info at some point or compile it out and in using a debug switch!
     union
     {
         struct { ivec2 A, B, C; };

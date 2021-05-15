@@ -6,31 +6,39 @@ struct render_box
 };
 
 #define DESIRED_TEMPLE_PLATFORM_COUNT 1
-#define TEMPLE_PLATFORM_MAX_TARGET_POSITION_COUNT 2
-#define TEMPLE_PLATFORM_TIMER_LOOP_FRAME_COUNT 30
+#define TEMPLE_PLATFORM_MAX_TARGET_POSITION_COUNT 2 //NOTE: Must always be greater than 2!!!!
+#define TEMPLE_PLATFORM_TIMER_END 1.0f
 struct temple_platform_instance
 {
-    vec3 Target[TEMPLE_PLATFORM_MAX_TARGET_POSITION_COUNT];
-    world_transform Transform;
+    world_transform Target[TEMPLE_PLATFORM_MAX_TARGET_POSITION_COUNT];
     f32 CeilingHeight;
-    s32 Timer;
+    f32 Timer;
+    f32 Increment;
     bool32 Rewind;
 };
 
 struct temple_platform
 {
     render_box Mesh;
-    bit32 InstanceCount; //NOTE: not much sense in making the instances a linked list tbh, so just doing this :)
+    bit32 InstanceCount;
     temple_platform_instance* Instance;
 };
 
-inline temple_platform_instance GenerateTemplePlatformInstance(bit32 StartTime, f32 CeilingHeight, vec3 tA, world_transform Transform)
+inline temple_platform_instance GenerateTemplePlatformInstance(f32 StartTime, f32 Increment, f32 CeilingHeight, world_transform tA, world_transform tB)
 {
     temple_platform_instance Result = {};
     Result.Timer = StartTime;
+    Result.Increment = Increment;
     Result.CeilingHeight = CeilingHeight;
-    Result.Transform = Transform;
     bit32 t = 0;
-    Result.Target[t] = tA; t++;
+    Result.Target[0] = tA; t++;
+    Result.Target[1] = tB; t++;
     return Result;
+}
+
+inline void TemplePlatformIncrementTimer(f32* Timer, f32 Increment)
+{
+    (*Timer) += Increment;
+    if((*Timer) > TEMPLE_PLATFORM_TIMER_END)
+    {(*Timer) = Increment; }
 }
