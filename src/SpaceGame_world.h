@@ -4,11 +4,11 @@ struct world_transform
     vec3 RotationAxes;
 };
 
-world_transform InterpolateWorldTransform(world_transform A, world_transform B, f32 Time)
+world_transform InterpolateWorldTransform(world_transform A, world_transform B, vec3 RotationAxes, f32 Time)
 {
     world_transform Result = {};
     Result.Translation = lerp_vec3(A.Translation, B.Translation, Time);
-    Result.RotationAxes = {0.0f, 0.0f, 0.0f}; //TODO(Andrew) If you want to interpolate between rotation, you need to encode quaternion instead of euler axes for good results!!!!
+    Result.RotationAxes = RotationAxes; //TODO(Andrew) If you want to interpolate between rotation, you need to encode quaternion instead of euler axes for good results!!!!
     return Result;
 }
 

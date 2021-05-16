@@ -161,7 +161,7 @@ void WindTriangle(triangle* Triangle, bit32* CurrentTriangle,  vertex* VertexArr
     (*CurrentTriangle)++;
 }
 
-inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatform, memory_block* Block, camera* Camera, bit32* PrintXLine, bit32* PrintYLine)
+inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatform, mat4x4* FinalTransform, memory_block* Block, camera* Camera, bit32* PrintXLine, bit32* PrintYLine)
 {
     f32 BottomClipPlane = -SCREEN_Y; f32 TopClipPlane = SCREEN_Y;
     f32 LeftClipPlane = -SCREEN_X; f32 RightClipPlane = SCREEN_X;
@@ -194,15 +194,9 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     {//Draw a the current temple platform instance
         temple_platform_instance* Current = &TemplePlatform->Instance[ti];
         
-        world_transform FinalTransform = InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->Timer);
-        PrintFloat(&Current->Timer, PrintXLine, PrintYLine, true);
-        TemplePlatformIncrementTimer(&Current->Timer, Current->Increment);
-        
-        f32 Height = 0.0f;
-        for(bit32 b = 0; b < 2; b++, Height = Current->CeilingHeight)
+        for(bit32 b = 0; b < 2; b++)
         {//Draw the two box meshes to make the true platform.
-            FinalTransform.Translation.y += Height;
-            mat4x4 WorldTransform = RotationAxesAndTranslationToMat4x4(FinalTransform);
+            mat4x4 WorldTransform = FinalTransform[ti + b];
             
             for(bit32 i = 0; i < RENDER_BOX_INDEX_COUNT; i+=3)
             {//Check triangle and generate N triangles if some are not inside some clip planes.
@@ -426,7 +420,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             B.Translation.x = 30.0f;
             B.Translation.y = 10.0f;
             B.Translation.z = -10.0f;
-            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0.0f, 0.01f, 20.0f, A, B); p++;
+            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0.0f, 0.01f, 20.0f, {0.0f, 0.0f, Radians(90)}, A, B); p++;
             TemplePlatform.InstanceCount = p;
         }//End of setting up the temple platform instances
         
@@ -481,12 +475,33 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     for(;;)
     {
         bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
+        mat4x4 FinalTransform[2]; //TODO(Andrew) Make this larger at some point so you can support all the temple platforms! Each one will produce 2 per instance, one for each box!
         
-        for(bit32 i = 0;
-            i < TemplePlatform.InstanceCount;
-            i++)
+        for(bit32 ti = 0;
+            ti < TemplePlatform.InstanceCount;
+            ti++)
         {
-            TemplePlatform.Instance;
+            temple_platform_instance* Current = &TemplePlatform.Instance[ti];
+            //mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, Current->Timer));
+            mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, 0.65f));
+            
+            PrintFloat(&Current->Timer, &PrintXLine, &PrintYLine, true);
+            TemplePlatformIncrementTimer(&Current->Timer, Current->Increment);
+            bit32 Base = (ti*2);
+            f32 Height = 0.0f;
+            for(bit32 b = 0; b < 2; b++, Height = Current->CeilingHeight)
+            {
+                FinalTransform[Base + b] = BaseTransform * TranslationAxesToMat4x4({0.0f, Height, 0.0f});
+            }
+            
+            //TODO(Andrew) Need to figure out what the correct check is here! (It should be something to do with the platform max x and z for those two while Y should be ok).
+            mat4x4 CurrentPosition = FinalTransform[Base] * RotationAxesAndTranslationToMat4x4(CurrentPlayer.Transform);
+            if((CurrentPosition.d[3][0] >= 0.0f && CurrentPosition.d[3][1] >= 0.0f && CurrentPosition.d[3][2] >= 0.0f) && 
+               ((CurrentPosition.d[3][0] < Height && CurrentPosition.d[3][1] < Height && CurrentPosition.d[3][2] < Height)))
+            {
+                //SDK_BLINKBOARD(2);
+            }
+            
         }
         
         
@@ -494,7 +509,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         Camera.RotatePair.x = CurrentPlayer.Transform.RotationAxes.y;
         Camera.RotatePair.y = CurrentPlayer.Transform.RotationAxes.x;
         memory_block TemporaryStack = PushNewBlock(&TemporaryBlock, Kilobytes(29));
-        Platform_Render(0xFF000000, &TemplePlatform, &TemporaryStack, &Camera, &PrintXLine, &PrintYLine);
+        Platform_Render(0xFF000000, &TemplePlatform, FinalTransform, &TemporaryStack, &Camera, &PrintXLine, &PrintYLine);
         DeleteBlock(&TemporaryBlock, &TemporaryStack);
     }
 }

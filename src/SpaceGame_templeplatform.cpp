@@ -10,6 +10,7 @@ struct render_box
 #define TEMPLE_PLATFORM_TIMER_END 1.0f
 struct temple_platform_instance
 {
+    vec3 RotationAxes;
     world_transform Target[TEMPLE_PLATFORM_MAX_TARGET_POSITION_COUNT];
     f32 CeilingHeight;
     f32 Timer;
@@ -24,9 +25,10 @@ struct temple_platform
     temple_platform_instance* Instance;
 };
 
-inline temple_platform_instance GenerateTemplePlatformInstance(f32 StartTime, f32 Increment, f32 CeilingHeight, world_transform tA, world_transform tB)
+inline temple_platform_instance GenerateTemplePlatformInstance(f32 StartTime, f32 Increment, f32 CeilingHeight, vec3 RotationAxes, world_transform tA, world_transform tB)
 {
     temple_platform_instance Result = {};
+    Result.RotationAxes = RotationAxes;
     Result.Timer = StartTime;
     Result.Increment = Increment;
     Result.CeilingHeight = CeilingHeight;

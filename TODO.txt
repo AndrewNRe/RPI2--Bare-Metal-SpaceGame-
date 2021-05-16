@@ -22,4 +22,4 @@ F: Should go and reduce register count on render letters. I was just simply tire
 Also, should make it so the render routine stores a buffer and just pushes all render letters in a render letter pass to draw on top of everything in the game!
 
 5/15/21 -
--Try adding more targets or more platform instances next!
+-Current goal is to have the player hit the center of the two platforms and be suspended between the two.
