@@ -427,7 +427,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         {//Setup the temple platform's box mesh
             render_box* RenderBox = &TemplePlatform.Mesh;
             {//Setup the vertex data
-                f32 X = 25.0f; f32 Y = 5.0f; f32 Z = 25.0f;
+                f32 X = RENDER_BOX_DEFAULT_X; f32 Y = RENDER_BOX_DEFAULT_Y; f32 Z = RENDER_BOX_DEFAULT_Z;
                 bit32 v = 0;
                 bit32 TopColor = 0xFF0000FF; bit32 BottomColor = 0xFFFF007F;
                 //Top
@@ -468,7 +468,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     camera Camera = {};
     game_player CurrentPlayer;
     CurrentPlayer.Transform.Translation.x = 0.0f;
-    CurrentPlayer.Transform.Translation.y = 6.0f;
+    CurrentPlayer.Transform.Translation.y = 24.5f;
     CurrentPlayer.Transform.Translation.z = 65.0f;
     CurrentPlayer.Transform.RotationAxes = {0.0f, 0.0f, 0.0f};
     
@@ -476,6 +476,8 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     {
         bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
         mat4x4 FinalTransform[2]; //TODO(Andrew) Make this larger at some point so you can support all the temple platforms! Each one will produce 2 per instance, one for each box!
+        
+        CurrentPlayer.Transform.Translation.z += -0.1f;
         
         for(bit32 ti = 0;
             ti < TemplePlatform.InstanceCount;
@@ -485,7 +487,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             //mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, Current->Timer));
             mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, 0.65f));
             
-            PrintFloat(&Current->Timer, &PrintXLine, &PrintYLine, true);
+            //PrintFloat(&Current->Timer, &PrintXLine, &PrintYLine, true);
             TemplePlatformIncrementTimer(&Current->Timer, Current->Increment);
             bit32 Base = (ti*2);
             f32 Height = 0.0f;
@@ -496,10 +498,20 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             
             //TODO(Andrew) Need to figure out what the correct check is here! (It should be something to do with the platform max x and z for those two while Y should be ok).
             mat4x4 CurrentPosition = FinalTransform[Base] * RotationAxesAndTranslationToMat4x4(CurrentPlayer.Transform);
-            if((CurrentPosition.d[3][0] >= 0.0f && CurrentPosition.d[3][1] >= 0.0f && CurrentPosition.d[3][2] >= 0.0f) && 
-               ((CurrentPosition.d[3][0] < Height && CurrentPosition.d[3][1] < Height && CurrentPosition.d[3][2] < Height)))
+            vec3 MovedPlayerOrigin;
+            MovedPlayerOrigin.x = CurrentPosition.d[0][3];
+            MovedPlayerOrigin.y = CurrentPosition.d[1][3];
+            MovedPlayerOrigin.z = CurrentPosition.d[2][3];
+            
+            PrintFloat(&MovedPlayerOrigin.x, &PrintXLine, &PrintYLine, false);
+            PrintFloat(&MovedPlayerOrigin.y, &PrintXLine, &PrintYLine, false);
+            PrintFloat(&MovedPlayerOrigin.z, &PrintXLine, &PrintYLine, true);
+            
+            if((MovedPlayerOrigin.x >= -RENDER_BOX_DEFAULT_X && MovedPlayerOrigin.y >= 0.0f && MovedPlayerOrigin.z >= -RENDER_BOX_DEFAULT_Z) && 
+               ((MovedPlayerOrigin.x < RENDER_BOX_DEFAULT_X && MovedPlayerOrigin.y < Height && MovedPlayerOrigin.z < RENDER_BOX_DEFAULT_Z)))
             {
-                //SDK_BLINKBOARD(2);
+                //TODO(Andrew) IN CASE!!!
+                
             }
             
         }
@@ -510,6 +522,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         Camera.RotatePair.y = CurrentPlayer.Transform.RotationAxes.x;
         memory_block TemporaryStack = PushNewBlock(&TemporaryBlock, Kilobytes(29));
         Platform_Render(0xFF000000, &TemplePlatform, FinalTransform, &TemporaryStack, &Camera, &PrintXLine, &PrintYLine);
+        
         DeleteBlock(&TemporaryBlock, &TemporaryStack);
     }
 }

@@ -1,3 +1,6 @@
+#define RENDER_BOX_DEFAULT_X 25.0f
+#define RENDER_BOX_DEFAULT_Y 5.0f
+#define RENDER_BOX_DEFAULT_Z 25.0f 
 #define RENDER_BOX_INDEX_COUNT 36
 struct render_box
 {
