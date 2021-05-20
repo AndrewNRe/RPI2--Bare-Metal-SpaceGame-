@@ -420,7 +420,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             B.Translation.x = 30.0f;
             B.Translation.y = 10.0f;
             B.Translation.z = -10.0f;
-            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0.0f, 0.01f, 20.0f, {0.0f, 0.0f, Radians(90)}, A, B); p++;
+            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(1.0f, 0.01f, 20.0f, {0.0f, 0.0f, Radians(90)}, A, B); p++;
             TemplePlatform.InstanceCount = p;
         }//End of setting up the temple platform instances
         
@@ -484,11 +484,10 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             ti++)
         {
             temple_platform_instance* Current = &TemplePlatform.Instance[ti];
-            //mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, Current->Timer));
-            mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, 0.65f));
+            mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, Current->Timer));
+            //mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, 0.55f));
             
-            //PrintFloat(&Current->Timer, &PrintXLine, &PrintYLine, true);
-            TemplePlatformIncrementTimer(&Current->Timer, Current->Increment);
+            PrintFloat(&Current->Timer, &PrintXLine, &PrintYLine, true);
             bit32 Base = (ti*2);
             f32 Height = 0.0f;
             for(bit32 b = 0; b < 2; b++, Height = Current->CeilingHeight)
@@ -496,23 +495,52 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
                 FinalTransform[Base + b] = BaseTransform * TranslationAxesToMat4x4({0.0f, Height, 0.0f});
             }
             
-            //TODO(Andrew) Need to figure out what the correct check is here! (It should be something to do with the platform max x and z for those two while Y should be ok).
-            mat4x4 CurrentPosition = FinalTransform[Base] * RotationAxesAndTranslationToMat4x4(CurrentPlayer.Transform);
-            vec3 MovedPlayerOrigin;
-            MovedPlayerOrigin.x = CurrentPosition.d[0][3];
-            MovedPlayerOrigin.y = CurrentPosition.d[1][3];
-            MovedPlayerOrigin.z = CurrentPosition.d[2][3];
-            
-            PrintFloat(&MovedPlayerOrigin.x, &PrintXLine, &PrintYLine, false);
-            PrintFloat(&MovedPlayerOrigin.y, &PrintXLine, &PrintYLine, false);
-            PrintFloat(&MovedPlayerOrigin.z, &PrintXLine, &PrintYLine, true);
-            
-            if((MovedPlayerOrigin.x >= -RENDER_BOX_DEFAULT_X && MovedPlayerOrigin.y >= 0.0f && MovedPlayerOrigin.z >= -RENDER_BOX_DEFAULT_Z) && 
-               ((MovedPlayerOrigin.x < RENDER_BOX_DEFAULT_X && MovedPlayerOrigin.y < Height && MovedPlayerOrigin.z < RENDER_BOX_DEFAULT_Z)))
+            //TODO(Andrew) The new plan is just to test via the dot product, all 6 planes' normals of the inside box that the top and bottom box form.
+            //If all 6 dot positively, you're in, else, you're out of at least 1 plane and are thus, invalid.
+            vec3 P = CurrentPlayer.Transform.Translation; //NOTE: Since the player's position is currently(5/20/21) the transform's origin, you don't factor in the player's rotation at all. If you added an offset for where the player was at, then you'd need to transform that offset properly by having the rotation, then translation!
+            //NOTE: If the normals are not ever hardcoded or are not set in the order such that 0 = top of box normal and 1 = bottom of box normal, you need to edit this code!!
+            vec3 BoxNormalA = {};
             {
-                //TODO(Andrew) IN CASE!!!
+                vec3 A = vec4tovec3(FinalTransform[Base] * vec3tovec4(TemplePlatform.Mesh.Vertex[0].Position, 1.0f));
+                vec3 B = vec4tovec3(FinalTransform[Base] * vec3tovec4(TemplePlatform.Mesh.Vertex[1].Position, 1.0f));
+                vec3 C = vec4tovec3(FinalTransform[Base] * vec3tovec4(TemplePlatform.Mesh.Vertex[2].Position, 1.0f));
+                BoxNormalA = cross(B - A, C - A);
+            }
+            vec3 BoxNormalB = {};
+            {
+                //NOTE: Have to be counter clockwise from your PoV of "under" the box.
+                vec3 A = vec4tovec3(FinalTransform[Base + 1] * vec3tovec4(TemplePlatform.Mesh.Vertex[4].Position, 1.0f));
+                vec3 B = vec4tovec3(FinalTransform[Base + 1] * vec3tovec4(TemplePlatform.Mesh.Vertex[6].Position, 1.0f));
+                vec3 C = vec4tovec3(FinalTransform[Base + 1] * vec3tovec4(TemplePlatform.Mesh.Vertex[5].Position, 1.0f));
+                BoxNormalB = cross(B - A, C - A);
+            }
+            
+            
+            PrintFloat(&P.x, &PrintXLine, &PrintYLine, false);
+            PrintFloat(&P.y, &PrintXLine, &PrintYLine, false);
+            PrintFloat(&P.z, &PrintXLine, &PrintYLine, true);
+            
+            PrintFloat(&BoxNormalA.x, &PrintXLine, &PrintYLine, false);
+            PrintFloat(&BoxNormalA.y, &PrintXLine, &PrintYLine, false);
+            PrintFloat(&BoxNormalA.z, &PrintXLine, &PrintYLine, true);
+            
+            PrintFloat(&BoxNormalB.x, &PrintXLine, &PrintYLine, false);
+            PrintFloat(&BoxNormalB.y, &PrintXLine, &PrintYLine, false);
+            PrintFloat(&BoxNormalB.z, &PrintXLine, &PrintYLine, true);
+            
+            if(dot_vec3(P, BoxNormalA) > 0.0f &&
+               dot_vec3(P, BoxNormalB) > 0.0f)
+            {
+                bit32 Success = 1;
+                PrintInteger(&Success, &PrintXLine, &PrintYLine, true);
+            }
+            else
+            {
+                TemplePlatformIncrementTimer(&Current->Timer, Current->Increment);
                 
             }
+            
+            
             
         }
         
