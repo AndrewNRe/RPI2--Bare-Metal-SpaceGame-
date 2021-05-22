@@ -20,6 +20,6 @@ f32 superslowf32_aprx_sqrt(f32 number) //TODO(Andrew): maybe get a large speedup
     for(;composite > number; value/=2)
     {
         composite = value*value;
-        SDK_BLINKBOARD(1);
+        //SDK_BLINKBOARD(1);
     }
 }

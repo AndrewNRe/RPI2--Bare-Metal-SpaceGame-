@@ -8,7 +8,7 @@ struct render_box
     bit16 Index[RENDER_BOX_INDEX_COUNT];
 };
 
-#define DESIRED_TEMPLE_PLATFORM_COUNT 1
+#define DESIRED_TEMPLE_PLATFORM_COUNT 2
 #define TEMPLE_PLATFORM_MAX_TARGET_POSITION_COUNT 2 //NOTE: Must always be greater than 2!!!!
 #define TEMPLE_PLATFORM_TIMER_END 1.0f
 struct temple_platform_instance

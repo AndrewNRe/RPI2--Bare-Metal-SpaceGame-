@@ -319,6 +319,16 @@ inline mat3x3 identity3x3()
     result.d[2][0] = 0; result.d[2][1] = 0; result.d[2][2] = 1;
     return result;
 }
+inline mat4x4 identity4x4()
+{
+    mat4x4 Result = {};
+    Result.d[0][0] = 1; Result.d[0][1] = 0; Result.d[0][2] = 0; Result.d[0][3] = 0;
+    Result.d[1][0] = 0; Result.d[1][1] = 1; Result.d[1][2] = 0; Result.d[1][3] = 0;
+    Result.d[2][0] = 0; Result.d[2][1] = 0; Result.d[2][2] = 1; Result.d[2][3] = 0;
+    Result.d[3][0] = 0; Result.d[3][1] = 0; Result.d[3][2] = 0; Result.d[3][3] = 1;
+    return Result;
+}
+
 inline mat3x3 rotate3x3X(f32 theta)
 {
     mat3x3 result;
@@ -564,5 +574,12 @@ vec3 ClosestPointBetweenTwoLines(vec3 A0, vec3 A1, vec3 B0, vec3 B1) //NOTE: Or 
     {//both segments degenerate into points so invalid to return.
         Result = INVALID_VECTOR_3;
     }
+    return Result;
+}
+
+vec3 GenerateNormal(vec3 A, vec3 B, vec3 C)
+{
+    vec3 Result = {};
+    Result = cross(B - A, C - A);
     return Result;
 }

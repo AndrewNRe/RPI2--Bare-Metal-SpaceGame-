@@ -36,7 +36,6 @@ bit32 collisionDEBUG_multiplier = 0;
 #include <SpaceGame_Graphics.cpp>
 #include <SpaceGame_templeplatform.cpp>
 #include <SpaceGame_platform.cpp>
-#include <SpaceGame_collision.cpp>
 #include <SpaceGame_player.cpp>
 
 //NOTE: assembly routines
@@ -173,9 +172,10 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     mat4x4 CameraTransform = mat3x3tomat4x4(rotate3x3X(Camera->RotatePair.y) * rotate3x3Y(Camera->RotatePair.x)) * 
         TranslationAxesToMat4x4(-Camera->OrbitPosition);
     
-    bit32 MaxScanlineTriangles = ((((RENDER_BOX_INDEX_COUNT/3)*3)*2)*4) * TemplePlatform->InstanceCount;
+    bit32 MaxScanlineTriangles = ((RENDER_BOX_INDEX_COUNT/3)*6) * TemplePlatform->InstanceCount;
     bit32 CurrentScanlineTriangle = 0;
     scanline_triangle* ScanlineTriangleStart = PushArray(Block, MaxScanlineTriangles, scanline_triangle, MemoryFlag_NoAlign);
+    
     
     for(bit32 t = 0; t < MaxScanlineTriangles; t++)
     {
@@ -196,7 +196,8 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
         
         for(bit32 b = 0; b < 2; b++)
         {//Draw the two box meshes to make the true platform.
-            mat4x4 WorldTransform = FinalTransform[ti + b];
+            bit32 Base = ti*2;
+            mat4x4 WorldTransform = FinalTransform[Base + b];
             
             for(bit32 i = 0; i < RENDER_BOX_INDEX_COUNT; i+=3)
             {//Check triangle and generate N triangles if some are not inside some clip planes.
@@ -419,7 +420,8 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             world_transform B = {};
             B.Translation.x = 30.0f;
             B.Translation.y = 10.0f;
-            B.Translation.z = -10.0f;
+            B.Translation.z = 10.0f;
+            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(1.0f, 0.01f, 20.0f, {0.0f, 0.0f, 0.0f}, A, B); p++;
             TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(1.0f, 0.01f, 20.0f, {0.0f, 0.0f, Radians(90)}, A, B); p++;
             TemplePlatform.InstanceCount = p;
         }//End of setting up the temple platform instances
@@ -468,24 +470,26 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     camera Camera = {};
     game_player CurrentPlayer;
     CurrentPlayer.Transform.Translation.x = 0.0f;
-    CurrentPlayer.Transform.Translation.y = 24.5f;
+    CurrentPlayer.Transform.Translation.y = 10.5f;
     CurrentPlayer.Transform.Translation.z = 65.0f;
     CurrentPlayer.Transform.RotationAxes = {0.0f, 0.0f, 0.0f};
     
     for(;;)
     {
         bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
-        mat4x4 FinalTransform[2]; //TODO(Andrew) Make this larger at some point so you can support all the temple platforms! Each one will produce 2 per instance, one for each box!
+        mat4x4 FinalTransform[4]; //TODO(Andrew) Make this larger at some point so you can support all the temple platforms! Each one will produce 2 per instance, one for each box!
         
         CurrentPlayer.Transform.Translation.z += -0.1f;
+        TemplePlatform.Instance[1].Target[0] = CurrentPlayer.Transform;
+        TemplePlatform.Instance[1].Target[1] = CurrentPlayer.Transform;
         
         for(bit32 ti = 0;
             ti < TemplePlatform.InstanceCount;
             ti++)
         {
             temple_platform_instance* Current = &TemplePlatform.Instance[ti];
-            mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, Current->Timer));
-            //mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, 0.55f));
+            //mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, Current->Timer));
+            mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, 0.60f));
             
             PrintFloat(&Current->Timer, &PrintXLine, &PrintYLine, true);
             bit32 Base = (ti*2);
@@ -495,44 +499,71 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
                 FinalTransform[Base + b] = BaseTransform * TranslationAxesToMat4x4({0.0f, Height, 0.0f});
             }
             
-            //TODO(Andrew) The new plan is just to test via the dot product, all 6 planes' normals of the inside box that the top and bottom box form.
-            //If all 6 dot positively, you're in, else, you're out of at least 1 plane and are thus, invalid.
             vec3 P = CurrentPlayer.Transform.Translation; //NOTE: Since the player's position is currently(5/20/21) the transform's origin, you don't factor in the player's rotation at all. If you added an offset for where the player was at, then you'd need to transform that offset properly by having the rotation, then translation!
-            //NOTE: If the normals are not ever hardcoded or are not set in the order such that 0 = top of box normal and 1 = bottom of box normal, you need to edit this code!!
-            vec3 BoxNormalA = {};
+            
+            vec3 A, B, C, D, E, F;
             {
-                vec3 A = vec4tovec3(FinalTransform[Base] * vec3tovec4(TemplePlatform.Mesh.Vertex[0].Position, 1.0f));
-                vec3 B = vec4tovec3(FinalTransform[Base] * vec3tovec4(TemplePlatform.Mesh.Vertex[1].Position, 1.0f));
-                vec3 C = vec4tovec3(FinalTransform[Base] * vec3tovec4(TemplePlatform.Mesh.Vertex[2].Position, 1.0f));
-                BoxNormalA = cross(B - A, C - A);
+#define CollisionTransformMath(Transform, A) vec4tovec3(Transform * vec3tovec4((A), 1.0f))
+                vec3 BA = CollisionTransformMath(FinalTransform[Base], TemplePlatform.Mesh.Vertex[0].Position);
+                vec3 BB = CollisionTransformMath(FinalTransform[Base], TemplePlatform.Mesh.Vertex[1].Position);
+                vec3 BC = CollisionTransformMath(FinalTransform[Base], TemplePlatform.Mesh.Vertex[2].Position);
+                vec3 BD = CollisionTransformMath(FinalTransform[Base], TemplePlatform.Mesh.Vertex[3].Position);
+                vec3 TA = CollisionTransformMath(FinalTransform[Base + 1], TemplePlatform.Mesh.Vertex[4].Position);
+                vec3 TB = CollisionTransformMath(FinalTransform[Base + 1], TemplePlatform.Mesh.Vertex[5].Position);
+                vec3 TC = CollisionTransformMath(FinalTransform[Base + 1], TemplePlatform.Mesh.Vertex[6].Position);
+                //vec3 TD = CollisionTransformMath(FinalTransform[Base + 1], TemplePlatform.Mesh.Vertex[7].Position);
+                
+                A = GenerateNormal(BA, BB, BD);
+                B = GenerateNormal(BA, TA, BB);
+                C = GenerateNormal(BB, TC, BC); //
+                D = GenerateNormal(BC, TC, BD);
+                E = GenerateNormal(BD, TA, BA); //
+                F = GenerateNormal(TA, TC, TB);
             }
-            vec3 BoxNormalB = {};
-            {
-                //NOTE: Have to be counter clockwise from your PoV of "under" the box.
-                vec3 A = vec4tovec3(FinalTransform[Base + 1] * vec3tovec4(TemplePlatform.Mesh.Vertex[4].Position, 1.0f));
-                vec3 B = vec4tovec3(FinalTransform[Base + 1] * vec3tovec4(TemplePlatform.Mesh.Vertex[6].Position, 1.0f));
-                vec3 C = vec4tovec3(FinalTransform[Base + 1] * vec3tovec4(TemplePlatform.Mesh.Vertex[5].Position, 1.0f));
-                BoxNormalB = cross(B - A, C - A);
-            }
             
             
-            PrintFloat(&P.x, &PrintXLine, &PrintYLine, false);
-            PrintFloat(&P.y, &PrintXLine, &PrintYLine, false);
-            PrintFloat(&P.z, &PrintXLine, &PrintYLine, true);
+            PrintVector(vec3, &P, &PrintXLine, &PrintYLine, true);
             
-            PrintFloat(&BoxNormalA.x, &PrintXLine, &PrintYLine, false);
-            PrintFloat(&BoxNormalA.y, &PrintXLine, &PrintYLine, false);
-            PrintFloat(&BoxNormalA.z, &PrintXLine, &PrintYLine, true);
+#if 0
+            f32 DA = dot_vec3(P, A);
+            f32 DB = dot_vec3(P, B);
+            f32 DC = dot_vec3(P, C);
+            f32 DD = dot_vec3(P, D);
+            f32 DE = dot_vec3(P, E);
+            f32 DF = dot_vec3(P, F);
             
-            PrintFloat(&BoxNormalB.x, &PrintXLine, &PrintYLine, false);
-            PrintFloat(&BoxNormalB.y, &PrintXLine, &PrintYLine, false);
-            PrintFloat(&BoxNormalB.z, &PrintXLine, &PrintYLine, true);
+            PrintFloat(&DA, &PrintXLine, &PrintYLine, true);
+            PrintFloat(&DB, &PrintXLine, &PrintYLine, true);
+            PrintFloat(&DC, &PrintXLine, &PrintYLine, true);
+            PrintFloat(&DD, &PrintXLine, &PrintYLine, true);
+            PrintFloat(&DE, &PrintXLine, &PrintYLine, true);
+            PrintFloat(&DF, &PrintXLine, &PrintYLine, true);
             
-            if(dot_vec3(P, BoxNormalA) > 0.0f &&
-               dot_vec3(P, BoxNormalB) > 0.0f)
+            if(DA >= 0.0f &&
+               DB >= 0.0f &&
+               DC >= 0.0f &&
+               DD >= 0.0f &&
+               DE >= 0.0f &&
+               DF >= 0.0f)
+#else
+                PrintVector(vec3, &A, &PrintXLine, &PrintYLine, true);
+            PrintVector(vec3, &B, &PrintXLine, &PrintYLine, true);
+            PrintVector(vec3, &C, &PrintXLine, &PrintYLine, true);
+            PrintVector(vec3, &D, &PrintXLine, &PrintYLine, true);
+            PrintVector(vec3, &E, &PrintXLine, &PrintYLine, true);
+            PrintVector(vec3, &F, &PrintXLine, &PrintYLine, true);
+            
+            if(dot_vec3(P, A) >= 0.0f &&
+               dot_vec3(P, B) >= 0.0f &&
+               dot_vec3(P, C) >= 0.0f &&
+               dot_vec3(P, D) >= 0.0f &&
+               dot_vec3(P, E) >= 0.0f &&
+               dot_vec3(P, F) >= 0.0f)
+#endif
             {
                 bit32 Success = 1;
                 PrintInteger(&Success, &PrintXLine, &PrintYLine, true);
+                SDK_BLINKBOARD(1);
             }
             else
             {
@@ -540,12 +571,16 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
                 
             }
             
-            
-            
         }
         
-        
+#if 1
+        Camera.OrbitPosition.x = 0.0f;
+        Camera.OrbitPosition.y = 24.5f;
+        Camera.OrbitPosition.z = 65.0f;
+#else
         Camera.OrbitPosition = CurrentPlayer.Transform.Translation;
+#endif
+        
         Camera.RotatePair.x = CurrentPlayer.Transform.RotationAxes.y;
         Camera.RotatePair.y = CurrentPlayer.Transform.RotationAxes.x;
         memory_block TemporaryStack = PushNewBlock(&TemporaryBlock, Kilobytes(29));
