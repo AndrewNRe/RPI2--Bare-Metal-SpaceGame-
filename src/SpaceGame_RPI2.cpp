@@ -5,26 +5,14 @@
 
 #include <ANR_types.h>
 
-#define debug 1 //NOTE: Debug switch to enable various debug procedures. (0 = off, <=1 = on)
-#define TEMPORARYREVAMP 0
-#define printrenderedtrianglevalues false
-#define collisiondebug false
-
 //NOTE: These are technically platform independant functions (except for render letter array and integer to ascii, wrote them in assembly for fun :) ), but are required for the program to function properly so they're included here.
 #include <sdk.h>
 extern "C" void RenderLetterArray(char* letters, bit32* xStart, bit32* yStart); //NOTE: xStart and yStart are both modifed in this procedure.
 extern "C" bit32 IntegerToAscii(void* bit8array, bit32 integer); //Return is length of string data wrote.
-#if debug
+#if SPACEGAME_INTERNAL
 #define Assert(Expression) if(!(Expression)) { for(;;){SDK_BLINKBOARD(1);} }
 #else
-#define Assert(Expression) ();
-#endif
-
-#if collisiondebug
-bool32 collisionDEBUGpassed = false;
-bit32 collisionDEBUG_currentSBI = 0;
-bit32 collisionDEBUG_finalsimplexindicies[4];
-bit32 collisionDEBUG_multiplier = 0;
+#define Assert(Expression) (Expression);
 #endif
 
 //NOTE: game code includes
@@ -35,7 +23,6 @@ bit32 collisionDEBUG_multiplier = 0;
 #include <SpaceGame_Graphics.h>
 #include <SpaceGame_Graphics.cpp>
 #include <SpaceGame_templeplatform.cpp>
-#include <SpaceGame_platform.cpp>
 #include <SpaceGame_player.cpp>
 
 //NOTE: assembly routines
@@ -142,16 +129,6 @@ inline bit8* Platform_MemoryAllocate(bit32 AllocationAmt)
     return Address;
 }
 
-bit32 getinputFRAMEDELAY = 6;
-inline bit32 Platform_GetInput()
-{
-    bit32 inputvalue = 0;
-    if(getinputFRAMEDELAY >= 2)
-    { inputvalue = QuerySnesController();}
-    else{getinputFRAMEDELAY++;}
-    return inputvalue;
-}
-
 void WindTriangle(triangle* Triangle, bit32* CurrentTriangle,  vertex* VertexArray, bit32 A, bit32 B, bit32 C)
 {
     Triangle[(*CurrentTriangle)].E[0] = VertexArray[A];
@@ -165,7 +142,7 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
     f32 BottomClipPlane = -SCREEN_Y; f32 TopClipPlane = SCREEN_Y;
     f32 LeftClipPlane = -SCREEN_X; f32 RightClipPlane = SCREEN_X;
     f32 NearClipPlane = -1; //Once you get clipping working, consider trying to put this value to .1!
-    f32 FarClipPlane = -1000.0f; 
+    f32 FarClipPlane = -1000.0f;
     
     f32 XFocalPoint = 0.31f; f32 YFocalPoint = 0.41f;
     
@@ -389,10 +366,6 @@ extern "C" void RPI2_threadpool()
 
 extern "C" void RPI2_main() //NOTE: "Entry Point"
 {
-    {//Platform global setup
-        getinputFRAMEDELAY = 0;
-    }
-    
     memory_block MainBlock = {};
     memory_block TemporaryBlock = {};
     {//Setup the game's memory
@@ -470,7 +443,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     camera Camera = {};
     game_player CurrentPlayer;
     CurrentPlayer.Transform.Translation.x = 0.0f;
-    CurrentPlayer.Transform.Translation.y = 10.5f;
+    CurrentPlayer.Transform.Translation.y = 1.5f;
     CurrentPlayer.Transform.Translation.z = 65.0f;
     CurrentPlayer.Transform.RotationAxes = {0.0f, 0.0f, 0.0f};
     
@@ -491,7 +464,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             //mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, Current->Timer));
             mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, 0.60f));
             
-            PrintFloat(&Current->Timer, &PrintXLine, &PrintYLine, true);
+            //PrintFloat(&Current->Timer, &PrintXLine, &PrintYLine, true);
             bit32 Base = (ti*2);
             f32 Height = 0.0f;
             for(bit32 b = 0; b < 2; b++, Height = Current->CeilingHeight)
@@ -523,6 +496,19 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             
             
             PrintVector(vec3, &P, &PrintXLine, &PrintYLine, true);
+            
+#if 0
+            vec3 OA;
+            OA.x = FinalTransform[Base].d[0][3];
+            OA.y = FinalTransform[Base].d[1][3];
+            OA.z = FinalTransform[Base].d[2][3];
+            PrintVector(vec3, &OA, &PrintXLine, &PrintYLine, true);
+            vec3 OB;
+            OB.x = FinalTransform[Base + 1].d[0][3];
+            OB.y = FinalTransform[Base + 1].d[1][3];
+            OB.z = FinalTransform[Base + 1].d[2][3];
+            PrintVector(vec3, &OB, &PrintXLine, &PrintYLine, true);
+#endif
             
 #if 0
             f32 DA = dot_vec3(P, A);
@@ -579,10 +565,10 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         Camera.OrbitPosition.z = 65.0f;
 #else
         Camera.OrbitPosition = CurrentPlayer.Transform.Translation;
-#endif
-        
         Camera.RotatePair.x = CurrentPlayer.Transform.RotationAxes.y;
         Camera.RotatePair.y = CurrentPlayer.Transform.RotationAxes.x;
+#endif
+        
         memory_block TemporaryStack = PushNewBlock(&TemporaryBlock, Kilobytes(29));
         Platform_Render(0xFF000000, &TemplePlatform, FinalTransform, &TemporaryStack, &Camera, &PrintXLine, &PrintYLine);
         

@@ -10,8 +10,9 @@ REM Therefore, I have this batch just raw call the executables to compile. If yo
 REM %Cpp_Compiler% aka %CompilerLocation%bin\arm-none-eabi-gcc.exe -option
 REM with
 REM arm-none-eabi-gcc -option
+set Definitions=-D SPACEGAME_INTERNAL=1
 set Assembler=%CompilerLocation%bin\arm-none-eabi-as.exe
-set Cpp_Compiler=%CompilerLocation%bin\arm-none-eabi-gcc.exe
+set Cpp_Compiler=%CompilerLocation%bin\arm-none-eabi-gcc.exe %Definitions%
 set Linker=%CompilerLocation%bin\arm-none-eabi-ld.exe
 set ObjCopy=%CompilerLocation%bin\arm-none-eabi-objcopy.exe
 

@@ -21,6 +21,6 @@ C: Correct GJK to be more correct.
 F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
 Also, should make it so the render routine stores a buffer and just pushes all render letters in a render letter pass to draw on top of everything in the game!
 
-5/20/21 -
--Current goal is to have the player hit the center of the two platforms and be suspended between the two and then don't move the current platform but move other platform(s).
-Soo from here you need to get the code that stops the platform once player lands in between the two.
+5/28/21 -
+It would appear that the best way to solve the bug is to not transform the box at all. But instead, move the player by the inverse trasnform of the box and then test against the normals as
+I currently have all that math working.
