@@ -21,6 +21,6 @@ C: Correct GJK to be more correct.
 F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
 Also, should make it so the render routine stores a buffer and just pushes all render letters in a render letter pass to draw on top of everything in the game!
 
-5/28/21 -
-It would appear that the best way to solve the bug is to not transform the box at all. But instead, move the player by the inverse trasnform of the box and then test against the normals as
-I currently have all that math working.
+5/29/21 -
+It looks as if I need to understand the "separating axis theorem" very well for the current attempt at collision to work. So planning on this all working withing the next
+3 days.

@@ -443,7 +443,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     camera Camera = {};
     game_player CurrentPlayer;
     CurrentPlayer.Transform.Translation.x = 0.0f;
-    CurrentPlayer.Transform.Translation.y = 1.5f;
+    CurrentPlayer.Transform.Translation.y = 7.0f;
     CurrentPlayer.Transform.Translation.z = 65.0f;
     CurrentPlayer.Transform.RotationAxes = {0.0f, 0.0f, 0.0f};
     
@@ -462,9 +462,9 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         {
             temple_platform_instance* Current = &TemplePlatform.Instance[ti];
             //mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, Current->Timer));
-            mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, 0.60f));
+            world_transform InterpolatedPlatformTransform = InterpolateWorldTransform(Current->Target[0], Current->Target[1], Current->RotationAxes, 0.60f);
+            mat4x4 BaseTransform = RotationAxesAndTranslationToMat4x4(InterpolatedPlatformTransform);
             
-            //PrintFloat(&Current->Timer, &PrintXLine, &PrintYLine, true);
             bit32 Base = (ti*2);
             f32 Height = 0.0f;
             for(bit32 b = 0; b < 2; b++, Height = Current->CeilingHeight)
@@ -472,45 +472,28 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
                 FinalTransform[Base + b] = BaseTransform * TranslationAxesToMat4x4({0.0f, Height, 0.0f});
             }
             
-            vec3 P = CurrentPlayer.Transform.Translation; //NOTE: Since the player's position is currently(5/20/21) the transform's origin, you don't factor in the player's rotation at all. If you added an offset for where the player was at, then you'd need to transform that offset properly by having the rotation, then translation!
-            
             vec3 A, B, C, D, E, F;
             {
-#define CollisionTransformMath(Transform, A) vec4tovec3(Transform * vec3tovec4((A), 1.0f))
-                vec3 BA = CollisionTransformMath(FinalTransform[Base], TemplePlatform.Mesh.Vertex[0].Position);
-                vec3 BB = CollisionTransformMath(FinalTransform[Base], TemplePlatform.Mesh.Vertex[1].Position);
-                vec3 BC = CollisionTransformMath(FinalTransform[Base], TemplePlatform.Mesh.Vertex[2].Position);
-                vec3 BD = CollisionTransformMath(FinalTransform[Base], TemplePlatform.Mesh.Vertex[3].Position);
-                vec3 TA = CollisionTransformMath(FinalTransform[Base + 1], TemplePlatform.Mesh.Vertex[4].Position);
-                vec3 TB = CollisionTransformMath(FinalTransform[Base + 1], TemplePlatform.Mesh.Vertex[5].Position);
-                vec3 TC = CollisionTransformMath(FinalTransform[Base + 1], TemplePlatform.Mesh.Vertex[6].Position);
-                //vec3 TD = CollisionTransformMath(FinalTransform[Base + 1], TemplePlatform.Mesh.Vertex[7].Position);
-                
-                A = GenerateNormal(BA, BB, BD);
-                B = GenerateNormal(BA, TA, BB);
-                C = GenerateNormal(BB, TC, BC); //
-                D = GenerateNormal(BC, TC, BD);
-                E = GenerateNormal(BD, TA, BA); //
-                F = GenerateNormal(TA, TC, TB);
+                A = Current->ModelSpaceCollisionNormal[0];
+                B = Current->ModelSpaceCollisionNormal[1];
+                C = Current->ModelSpaceCollisionNormal[2];
+                D = Current->ModelSpaceCollisionNormal[3];
+                E = Current->ModelSpaceCollisionNormal[4];
+                F = Current->ModelSpaceCollisionNormal[5];
             }
             
+            vec3 P = {};
+            {
+                //InterpolatedPlatformTransform.Translation.y += Current->CeilingHeight/2;
+                mat4x4 TransformedPlayer = RotationAxesAndTranslationToMat4x4(CurrentPlayer.Transform) * InverseRotationAxesAndTranslationToMat4x4(InterpolatedPlatformTransform);
+                P.x = TransformedPlayer.d[0][3];
+                P.y = TransformedPlayer.d[1][3];
+                P.z = TransformedPlayer.d[2][3];
+            }
             
             PrintVector(vec3, &P, &PrintXLine, &PrintYLine, true);
             
-#if 0
-            vec3 OA;
-            OA.x = FinalTransform[Base].d[0][3];
-            OA.y = FinalTransform[Base].d[1][3];
-            OA.z = FinalTransform[Base].d[2][3];
-            PrintVector(vec3, &OA, &PrintXLine, &PrintYLine, true);
-            vec3 OB;
-            OB.x = FinalTransform[Base + 1].d[0][3];
-            OB.y = FinalTransform[Base + 1].d[1][3];
-            OB.z = FinalTransform[Base + 1].d[2][3];
-            PrintVector(vec3, &OB, &PrintXLine, &PrintYLine, true);
-#endif
-            
-#if 0
+#if 1
             f32 DA = dot_vec3(P, A);
             f32 DB = dot_vec3(P, B);
             f32 DC = dot_vec3(P, C);
@@ -526,11 +509,11 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             PrintFloat(&DF, &PrintXLine, &PrintYLine, true);
             
             if(DA >= 0.0f &&
-               DB >= 0.0f &&
+               DB <= 0.0f &&
                DC >= 0.0f &&
                DD >= 0.0f &&
-               DE >= 0.0f &&
-               DF >= 0.0f)
+               DE <= 0.0f &&
+               DF <= 0.0f)
 #else
                 PrintVector(vec3, &A, &PrintXLine, &PrintYLine, true);
             PrintVector(vec3, &B, &PrintXLine, &PrintYLine, true);
@@ -540,16 +523,15 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             PrintVector(vec3, &F, &PrintXLine, &PrintYLine, true);
             
             if(dot_vec3(P, A) >= 0.0f &&
-               dot_vec3(P, B) >= 0.0f &&
+               dot_vec3(P, B) <= 0.0f &&
                dot_vec3(P, C) >= 0.0f &&
                dot_vec3(P, D) >= 0.0f &&
-               dot_vec3(P, E) >= 0.0f &&
-               dot_vec3(P, F) >= 0.0f)
+               dot_vec3(P, E) <= 0.0f &&
+               dot_vec3(P, F) <= 0.0f)
 #endif
             {
-                bit32 Success = 1;
+                bit32 Success = 1337;
                 PrintInteger(&Success, &PrintXLine, &PrintYLine, true);
-                SDK_BLINKBOARD(1);
             }
             else
             {
@@ -559,7 +541,7 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             
         }
         
-#if 1
+#if 0
         Camera.OrbitPosition.x = 0.0f;
         Camera.OrbitPosition.y = 24.5f;
         Camera.OrbitPosition.z = 65.0f;

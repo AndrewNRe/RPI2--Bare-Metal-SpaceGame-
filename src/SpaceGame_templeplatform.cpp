@@ -15,6 +15,7 @@ struct temple_platform_instance
 {
     vec3 RotationAxes;
     world_transform Target[TEMPLE_PLATFORM_MAX_TARGET_POSITION_COUNT];
+    vec3 ModelSpaceCollisionNormal[6]; //NOTE: These are currently hardcoded because of the way that the collision system works.
     f32 CeilingHeight;
     f32 Timer;
     f32 Increment;
@@ -38,6 +39,12 @@ inline temple_platform_instance GenerateTemplePlatformInstance(f32 StartTime, f3
     bit32 t = 0;
     Result.Target[0] = tA; t++;
     Result.Target[1] = tB; t++;
+    Result.ModelSpaceCollisionNormal[0] = {0.0f, 1.0f, 0.0f}; //Bottom
+    Result.ModelSpaceCollisionNormal[1] = {-1.0f, 0.0f, 0.0f}; //Left
+    Result.ModelSpaceCollisionNormal[2] = {0.0f, 0.0f, 1.0f}; //Back
+    Result.ModelSpaceCollisionNormal[3] = {1.0f, 0.0f, 0.0f}; //Right
+    Result.ModelSpaceCollisionNormal[4] = {0.0f, 0.0f, -1.0f}; //Front
+    Result.ModelSpaceCollisionNormal[5] = {0.0f, -1.0f, 0.0f}; //Top
     return Result;
 }
 

@@ -330,38 +330,75 @@ inline mat4x4 identity4x4()
 }
 
 inline mat3x3 rotate3x3X(f32 theta)
+{//Rotates counter clockwise around the X axis in a right handed coordinate system. As of 9/15/20 the order goes Postiive Y, Positive Z, Negative Y, Negative Z.
+    mat3x3 Result = {};
+    f32 c = cosf(theta);
+    f32 s = sinf(theta);
+    Result.d[0][0] = 1; Result.d[0][1] = 0; Result.d[0][2] = 0;
+    Result.d[1][0] = 0; Result.d[1][1] = c; Result.d[1][2] = -s;
+    Result.d[2][0] = 0; Result.d[2][1] = s; Result.d[2][2] = c;
+    return Result;
+}
+inline mat3x3 rotate3x3XInverse(f32 theta)
 {
-    mat3x3 result;
-    result.d[0][0] = 1; result.d[0][1] = 0; result.d[0][2] = 0;
-    result.d[1][0] = 0; result.d[1][1] = cosf(theta); result.d[1][2] = -sinf(theta);
-    result.d[2][0] = 0; result.d[2][1] = sinf(theta); result.d[2][2] = cosf(theta);
-    return result;
+    mat3x3 Result = {};
+    f32 c = cosf(theta);
+    f32 s = sinf(theta);
+    Result.d[0][0] = 1; Result.d[0][1] = 0; Result.d[0][2] = 0;
+    Result.d[1][0] = 0; Result.d[1][1] = c; Result.d[1][2] = s;
+    Result.d[2][0] = 0; Result.d[2][1] = -s; Result.d[2][2] = c;
+    return Result;
 }
 inline mat3x3 rotate3x3Y(f32 theta)
+{ //Rotates counter clockwise around the Y axis. Following right hand rule.
+    mat3x3 Result = {};
+    f32 c = cosf(theta);
+    f32 s = sinf(theta);
+    Result.d[0][0] = c; Result.d[0][1] = 0; Result.d[0][2] = s;
+    Result.d[1][0] = 0; Result.d[1][1] = 1; Result.d[1][2] = 0;
+    Result.d[2][0] = -s; Result.d[2][1] = 0; Result.d[2][2] = c;
+    return Result;
+}
+inline mat3x3 rotate3x3YInverse(f32 theta)
 {
-    mat3x3 result;
-    result.d[0][0] = cosf(theta); result.d[0][1] = 0; result.d[0][2] = sinf(theta);
-    result.d[1][0] = 0; result.d[1][1] = 1; result.d[1][2] = 0;
-    result.d[2][0] = -sinf(theta); result.d[2][1] = 0; result.d[2][2] = cosf(theta);
-    return result;
+    mat3x3 Result = {};
+    f32 c = cosf(theta);
+    f32 s = sinf(theta);
+    Result.d[0][0] = c; Result.d[0][1] = 0; Result.d[0][2] = -s;
+    Result.d[1][0] = 0; Result.d[1][1] = 1; Result.d[1][2] = 0;
+    Result.d[2][0] = s; Result.d[2][1] = 0; Result.d[2][2] = c;
+    return Result;
+}
+inline mat2x2 rotate2x2Geometrically(vec2 Vector) //Or whatever you'd actually call it. I'm not a mathematician so please feel free to correct me! @person who reads this code
+{//Rotates counter clockwise around the Z axis. This follows the "right hand rule"
+    mat2x2 Result = {};
+    f32 c = dot_vec2({1.0f, 0.0f}, Vector);
+    f32 s = dot_vec2({0.0f, 1.0f}, Vector);
+    Result.d[0][0] = c; Result.d[0][1] = s;
+    Result.d[1][0] = -s; Result.d[1][1] = c;
+    return Result;
 }
 inline mat3x3 rotate3x3Z(f32 theta)
-{
-    mat3x3 result;
-    result.d[0][0] = cosf(theta); result.d[0][1] = -sinf(theta); result.d[0][2] = 0;
-    result.d[1][0] = sinf(theta); result.d[1][1] = cosf(theta); result.d[1][2] = 0;
-    result.d[2][0] = 0; result.d[2][1] = 0; result.d[2][2] = 1;
-    return result;
+{//Rotates counter clockwise around the Z axis. This follows the "right hand rule"
+    mat3x3 Result = {};
+    f32 c = cosf(theta);
+    f32 s = sinf(theta);
+    Result.d[0][0] = c; Result.d[0][1] = -s; Result.d[0][2] = 0;
+    Result.d[1][0] = s; Result.d[1][1] = c; Result.d[1][2] = 0;
+    Result.d[2][0] = 0; Result.d[2][1] = 0; Result.d[2][2] = 1;
+    return Result;
+}
+inline mat3x3 rotate3x3ZInverse(f32 theta)
+{//Rotates counter clockwise around the Z axis. This follows the "right hand rule"
+    mat3x3 Result = {};
+    f32 c = cosf(theta);
+    f32 s = sinf(theta);
+    Result.d[0][0] = c; Result.d[0][1] = s; Result.d[0][2] = 0;
+    Result.d[1][0] = -s; Result.d[1][1] = c; Result.d[1][2] = 0;
+    Result.d[2][0] = 0; Result.d[2][1] = 0; Result.d[2][2] = 1;
+    return Result;
 }
 
-inline mat3x3 rotate3x3YWORLD(f32 theta)
-{
-    mat3x3 result;
-    result.d[0][0] = cosf(theta); result.d[0][1] = 0; result.d[0][2] = -sinf(theta);
-    result.d[1][0] = 0; result.d[1][1] = 1; result.d[1][2] = 0;
-    result.d[2][0] = sinf(theta); result.d[2][1] = 0; result.d[2][2] = cosf(theta);
-    return result;
-}
 
 inline mat3x3 transpose(mat3x3 A)
 {
@@ -500,6 +537,13 @@ inline mat3x3 RotationMatrix(vec3 RotationAxes)
 {
     mat3x3 Result;
     Result = rotate3x3Z(RotationAxes.z) * rotate3x3Y(RotationAxes.y) * rotate3x3X(RotationAxes.x); //NOTE: Right handed coordinate system. +X right, +Y up, +Z out.
+    return Result;
+}
+
+inline mat3x3 InverseRotationMatrix(vec3 RotationAxes)
+{
+    mat3x3 Result = {};
+    Result = rotate3x3XInverse(RotationAxes.x) * rotate3x3YInverse(RotationAxes.y) * rotate3x3ZInverse(RotationAxes.z);
     return Result;
 }
 
