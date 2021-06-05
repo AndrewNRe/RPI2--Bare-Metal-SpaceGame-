@@ -22,7 +22,7 @@ start.elf (repo)
 kernel7.img (apart of zip)
 And you're good to go!
 If you have any bugs / issues / questions, please email me at andrewnereinke@gmail.com! 
-You can also try my twitter, but I check it about once every month so do expect a very delayed response if you contact me there.
+You can also try my twitter, dm or at me @AndrewNReinke
 Git also works, but I don't actually know of a way to contact people on it so if you know of a way, please go right on ahead and do so!
 
 Compiling:

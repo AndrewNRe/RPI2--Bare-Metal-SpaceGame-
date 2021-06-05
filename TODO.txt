@@ -14,13 +14,10 @@ B: "multithread" the software renderer.
 -Is the previous statement relevant? Absolutely need to read on this.
 -Need to get some queue to issue out work to all the threads. Thinking that a lot of rework on the engine will be done to make this happen!
 
-C: Correct GJK to be more correct.
--Refer to Haunt code if this is me doing this implement.
--If someone else is doing this, the video I used to understand GJK was Casey Muratori's video: https://www.youtube.com/watch?v=Qupqu1xe7Io
-
 F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
 Also, should make it so the render routine stores a buffer and just pushes all render letters in a render letter pass to draw on top of everything in the game!
 
-5/29/21 -
-It looks as if I need to understand the "separating axis theorem" very well for the current attempt at collision to work. So planning on this all working withing the next
-3 days.
+6/5/21-
+Next thing on the list is to simply ensure the current graphics bug is with the geometry, or with the renderer. After, fix the player code to jump between two platforms.
+For the two platforms, i'm thinking that they stay the same, only change will be the actual positions of where you're jumping. So, re-arange data such that this is very
+convienient!
