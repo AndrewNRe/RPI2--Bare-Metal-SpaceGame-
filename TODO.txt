@@ -17,7 +17,8 @@ B: "multithread" the software renderer.
 F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
 Also, should make it so the render routine stores a buffer and just pushes all render letters in a render letter pass to draw on top of everything in the game!
 
+G: Through gameplay iteration, decide how the collision if against OBB that's not valid should be handled. I'm not quite sure what I want yet, as the simple 
+"just push away" style makes the most sense. Still not sure how I want the player to move around quite yet though, so i'll have to decide later!
+
 6/5/21-
-Next thing on the list is to simply ensure the current graphics bug is with the geometry, or with the renderer. After, fix the player code to jump between two platforms.
-For the two platforms, i'm thinking that they stay the same, only change will be the actual positions of where you're jumping. So, re-arange data such that this is very
-convienient!
+Just need to restore gameplay code!

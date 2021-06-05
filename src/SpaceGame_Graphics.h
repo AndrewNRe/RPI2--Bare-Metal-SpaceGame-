@@ -42,3 +42,13 @@ void ScanlineTriangleTransfer(scanline_triangle* A, scanline_triangle* B)
 #define REGION_X_OUT 0x3
 #define REGION_Y_OUT 0xC
 #define REGION_Z_OUT 0x30
+
+#define RENDER_BOX_DEFAULT_X 25.0f
+#define RENDER_BOX_DEFAULT_Y 5.0f
+#define RENDER_BOX_DEFAULT_Z 25.0f
+#define RENDER_BOX_INDEX_COUNT 36
+struct render_box
+{
+    vertex Vertex[8];
+    bit16 Index[RENDER_BOX_INDEX_COUNT];
+};
