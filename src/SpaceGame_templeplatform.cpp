@@ -1,4 +1,3 @@
-#define DESIRED_TEMPLE_PLATFORM_COUNT 1
 #define TEMPLE_PLATFORM_MAX_TARGET_POSITION_COUNT 2 //NOTE: Must always be greater than 2!!!!
 #define TEMPLE_PLATFORM_TIMER_END 1.0f
 struct temple_platform_instance
@@ -48,9 +47,21 @@ inline temple_platform_instance GenerateTemplePlatformInstance(f32 StartTime, f3
     return Result;
 }
 
-inline void TemplePlatformIncrementTimer(f32* Timer, f32 Increment)
+inline void TemplePlatformIncrementTimer(temple_platform_instance* Current, f32 Increment)
 {
-    (*Timer) += Increment;
+    f32* Timer = &Current->Timer;
+    
+    if(Current->Rewind) { (*Timer) -= Increment; }
+    else { (*Timer) += Increment; }
+    
     if((*Timer) > TEMPLE_PLATFORM_TIMER_END)
-    {(*Timer) = Increment; }
+    {
+        (*Timer) = TEMPLE_PLATFORM_TIMER_END;
+        Current->Rewind = true;
+    }
+    else if((*Timer) < 0.0f)
+    {
+        (*Timer) = 0.0f;
+        Current->Rewind = false;
+    }
 }

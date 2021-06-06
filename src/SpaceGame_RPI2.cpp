@@ -24,6 +24,7 @@ extern "C" bit32 IntegerToAscii(void* bit8array, bit32 integer); //Return is len
 #include <SpaceGame_Graphics.cpp>
 #include <SpaceGame_Collision.h>
 #include <SpaceGame_templeplatform.cpp>
+#include <SpaceGame_Input.h>
 #include <SpaceGame_player.cpp>
 
 //NOTE: RPI2 specific define(s)
@@ -386,20 +387,33 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     
     //TODO(Andrew) To keep this code platform ignorant, move this code out into a SetupTemplePlatforms() function or macro.
     {//Start of setting up the temple platform instances
-        TemplePlatform.Instance = PushArray(&MainBlock, DESIRED_TEMPLE_PLATFORM_COUNT, temple_platform_instance, MemoryFlag_Pow2Align | MemoryFlag_ClearToZero);
+        bit32 MaxPlatforms = 2;
+        TemplePlatform.Instance = PushArray(&MainBlock, MaxPlatforms, temple_platform_instance, MemoryFlag_Pow2Align | MemoryFlag_ClearToZero);
         bit32 p = 0;
         //TODO(Andrew) At some point, figure out why I cannot initalize a world transform properly via an initializer list! It is 100% something wrong with the generated
         //assembly!!!
-        vec3 A = {};
-        A.x = -30.0f;
-        A.y = -10.0f;
-        A.z = 10.0f;
-        vec3 B = {};
-        B.x = 30.0f;
-        B.y = 10.0f;
-        B.z = 10.0f;
-        //TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(1.0f, 0.01f, {0.0f, 0.0f, 0.0f}, A, B); p++;
-        TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(1.0f, 0.01f, {0.0f, 0.0f, Radians(45)}, A, B); p++;
+        {
+            vec3 A = {};
+            A.x = -30.0f;
+            A.y = -10.0f;
+            A.z = 10.0f;
+            vec3 B = {};
+            B.x = 30.0f;
+            B.y = 10.0f;
+            B.z = 10.0f;
+            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0.0f, 0.01f, {0.0f, 0.0f, 0.0f}, A, B); p++;
+        }
+        {
+            vec3 A = {};
+            A.x = 30.0f;
+            A.y = -10.0f;
+            A.z = -30.0f;
+            vec3 B = {};
+            B.x = -30.0f;
+            B.y = 10.0f;
+            B.z = -40.0f;
+            TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0.0f, 0.01f, {0.0f, 0.0f, 0.0f}, A, B); p++;
+        }
         TemplePlatform.InstanceCount = p;
     }//End of setting up the temple platform instances
     
@@ -410,6 +424,8 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     CurrentPlayer.Transform.Translation.z = 65.0f;
     CurrentPlayer.Transform.RotationAxes = {0.0f, 0.0f, 0.0f};
     
+    game_input* Input = PushStruct(&MainBlock, game_input, MemoryFlag_ClearToZero | MemoryFlag_Pow2Align);
+    
     for(;;)
     {
         bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
@@ -417,9 +433,70 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         memory_block TemporaryStack = PushNewBlock(&TemporaryBlock, Kilobytes(29));
         
         vec3 PP = CurrentPlayer.Transform.Translation;
-        CurrentPlayer.Transform.Translation.z += -0.1f;
-        //TemplePlatform.Instance[1].Target[0] = CurrentPlayer.Transform;
-        //TemplePlatform.Instance[1].Target[1] = CurrentPlayer.Transform;
+        vec3* P = &CurrentPlayer.Transform.Translation;
+        
+        {//Input Start
+            bool32 SnesButtonDown = QuerySnesController();
+            if(SnesButtonDown)
+            { Input->ButtonDown++; }
+            else { Input->ButtonDown = 0; }
+            
+            PrintInteger(&Input->ButtonDown, &PrintXLine, &PrintYLine, true);
+            
+            if(Input->ButtonDown == 1)
+            {
+                if(Input->StartMove)
+                {
+                    Input->State = (input_state)((bit32)Input->State + 1);
+                    if(Input->State == Input_End)
+                    {
+                        Input->State = (input_state)0;
+                        Input->StartMove = false;
+                    }
+                }
+                else
+                {
+                    
+                    Input->StartMove = true;
+                }
+            }
+            
+            if(Input->StartMove)
+            {
+                f32 Increment = 0.1f;
+                if(Input->State == Input_Rotated)
+                {
+                    f32* YTheta = &CurrentPlayer.Transform.RotationAxes.y;
+                    (*YTheta) += Increment;
+                    if((*YTheta) > PI32*2){ (*YTheta) = 0.0f; }
+                    PrintFloat(YTheta, &PrintXLine, &PrintYLine, true);
+                }
+                else
+                {
+                    vec3 WorldIn = {};
+                    WorldIn.x = 0.0f; WorldIn.y = 0.0f; WorldIn.z = -1.0f;
+                    WorldIn = RotationMatrix(CurrentPlayer.Transform.RotationAxes) * WorldIn;
+                    if(Input->State == Input_SideMoved)
+                    {
+                        //WorldIn * ;
+                        
+                        //TODO(Andrew) Basically, use the current position to move between some amount from where it is "side to side" in some fixed range, here.
+                    }
+                    else if(Input->State == Input_UpMoved)
+                    {
+                        //TODO(Andrew) Use the now current whatever position that stores amt of side to side and add some up / down value to it.
+                        
+                    }
+                    else if(Input->State == Input_InMoved)
+                    {
+                        //TODO(Andrew) Use the current side to side and up / down amt and add some forward to it.
+                        //Looking at this again, you're basically just making a vector that's oriented in a certain direction but slowly filling the "motions" of it across N frames.
+                        
+                    }
+                    PrintVector(vec3, &WorldIn, &PrintXLine, &PrintYLine, true);
+                }
+            }
+        }//Input End
         
         vec3* TargetTransformInterpolated = PushArray(&TemporaryStack, TemplePlatform.InstanceCount, vec3, MemoryFlag_NoAlign | MemoryFlag_ClearToZero);
         
@@ -428,10 +505,10 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             ti++)
         {
             temple_platform_instance* Current = &TemplePlatform.Instance[ti];
-            //TargetTransformInterpolated[ti] = lerp_vec3(Current->Target[0], Current->Target[1], 0.60f);
+            PrintFloat(&Current->Timer, &PrintXLine, &PrintYLine, true);
+            
             TargetTransformInterpolated[ti] = lerp_vec3(Current->Target[0], Current->Target[1], Current->Timer);
             
-            vec3* P = &CurrentPlayer.Transform.Translation;
             bool32 CollisionOccured = false;
             PrintVector(vec3, P, &PrintXLine, &PrintYLine, true);
             
@@ -469,10 +546,9 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             }
             else
             {
-                TemplePlatformIncrementTimer(&Current->Timer, Current->Increment);
+                TemplePlatformIncrementTimer(Current, Current->Increment);
                 
             }
-            
         }
         
         Camera.OrbitPosition = CurrentPlayer.Transform.Translation;

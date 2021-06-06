@@ -7,4 +7,5 @@ struct camera
 struct game_player
 {
     world_transform Transform;
+    world_transform Dest;
 };
