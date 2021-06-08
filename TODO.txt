@@ -21,5 +21,4 @@ G: Through gameplay iteration, decide how the collision if against OBB that's no
 "just push away" style makes the most sense. Still not sure how I want the player to move around quite yet though, so i'll have to decide later!
 
 6/6/21-
-Just make it so the player can move left to right, up and down, and forward / back and the proj will be restored!
-Read teh code in the rpi2 main for instructions / ideas on how to do the above mentioned procedures.
+Make it so the game has gravity and the player does collision that seems cool and what not.

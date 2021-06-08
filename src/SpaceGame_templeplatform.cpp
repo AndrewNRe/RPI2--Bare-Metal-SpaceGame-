@@ -1,13 +1,10 @@
 #define TEMPLE_PLATFORM_MAX_TARGET_POSITION_COUNT 2 //NOTE: Must always be greater than 2!!!!
-#define TEMPLE_PLATFORM_TIMER_END 1.0f
 struct temple_platform_instance
 {
     vec3 RotationAxes;
     vec3 Target[TEMPLE_PLATFORM_MAX_TARGET_POSITION_COUNT];
     oriented_bounding_box OBB[3];
-    f32 Timer;
-    f32 Increment;
-    bool32 Rewind;
+    interpolation_data Interpolation;
 };
 
 struct temple_platform
@@ -21,8 +18,10 @@ inline temple_platform_instance GenerateTemplePlatformInstance(f32 StartTime, f3
 {
     temple_platform_instance Result = {};
     Result.RotationAxes = RotationAxes;
-    Result.Timer = StartTime;
-    Result.Increment = Increment;
+    Result.Interpolation.Increment = Increment;
+    Result.Interpolation.Max = 1.0f;
+    Result.Interpolation.Amount = StartTime;
+    Result.Interpolation.Rewind = false;
     bit32 t = 0;
     Result.Target[0] = tA; t++;
     Result.Target[1] = tB; t++;
@@ -45,23 +44,4 @@ inline temple_platform_instance GenerateTemplePlatformInstance(f32 StartTime, f3
         Result.OBB[o].AxisDirectionLocal[2].x = Rotation.d[0][2]; Result.OBB[o].AxisDirectionLocal[2].y = Rotation.d[1][2]; Result.OBB[o].AxisDirectionLocal[2].z = Rotation.d[2][2];
     }
     return Result;
-}
-
-inline void TemplePlatformIncrementTimer(temple_platform_instance* Current, f32 Increment)
-{
-    f32* Timer = &Current->Timer;
-    
-    if(Current->Rewind) { (*Timer) -= Increment; }
-    else { (*Timer) += Increment; }
-    
-    if((*Timer) > TEMPLE_PLATFORM_TIMER_END)
-    {
-        (*Timer) = TEMPLE_PLATFORM_TIMER_END;
-        Current->Rewind = true;
-    }
-    else if((*Timer) < 0.0f)
-    {
-        (*Timer) = 0.0f;
-        Current->Rewind = false;
-    }
 }

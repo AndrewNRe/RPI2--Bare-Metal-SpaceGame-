@@ -4,6 +4,7 @@ enum input_state
     Input_SideMoved,
     Input_UpMoved,
     Input_InMoved,
+    Input_Power,
     Input_End,
 };
 struct game_input

@@ -424,6 +424,16 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     CurrentPlayer.Transform.Translation.z = 65.0f;
     CurrentPlayer.Transform.RotationAxes = {0.0f, 0.0f, 0.0f};
     
+    CurrentPlayer.Interpolation.Increment = 0.01f;
+    CurrentPlayer.Interpolation.Max = 1.0f;
+    CurrentPlayer.Interpolation.Amount = 0.0f;
+    CurrentPlayer.Interpolation.Rewind = false;
+    
+    CurrentPlayer.Power.Increment = 1.0f;
+    CurrentPlayer.Power.Max = 20.0f;
+    CurrentPlayer.Power.Amount = 0.0f;
+    CurrentPlayer.Power.Rewind = false;
+    
     game_input* Input = PushStruct(&MainBlock, game_input, MemoryFlag_ClearToZero | MemoryFlag_Pow2Align);
     
     for(;;)
@@ -456,9 +466,14 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
                 }
                 else
                 {
-                    
                     Input->StartMove = true;
+                    CurrentPlayer.XMove = {};
+                    CurrentPlayer.YMove = {};
+                    CurrentPlayer.ZMove = {};
+                    CurrentPlayer.PreviousTransform = CurrentPlayer.Transform;
                 }
+                CurrentPlayer.Interpolation.Amount = 0.0f;
+                CurrentPlayer.Power.Amount = 0.0f;
             }
             
             if(Input->StartMove)
@@ -473,27 +488,41 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
                 }
                 else
                 {
-                    vec3 WorldIn = {};
-                    WorldIn.x = 0.0f; WorldIn.y = 0.0f; WorldIn.z = -1.0f;
-                    WorldIn = RotationMatrix(CurrentPlayer.Transform.RotationAxes) * WorldIn;
+                    f32 Power = 1.0f;
+                    mat3x3 R = RotationMatrix(CurrentPlayer.Transform.RotationAxes);
                     if(Input->State == Input_SideMoved)
                     {
-                        //WorldIn * ;
-                        
-                        //TODO(Andrew) Basically, use the current position to move between some amount from where it is "side to side" in some fixed range, here.
+                        vec3 XA; XA.x = -10.0f; XA.y = 0.0f; XA.z = 0.0f;
+                        vec3 XB; XB.x = 10.0f; XB.y = 0.0f; XB.z = 0.0f;
+                        CurrentPlayer.XMove = PlayerMove(XA, XB, R, &CurrentPlayer.Interpolation);
                     }
                     else if(Input->State == Input_UpMoved)
                     {
-                        //TODO(Andrew) Use the now current whatever position that stores amt of side to side and add some up / down value to it.
-                        
+                        vec3 YA; YA.x = 0.0f; YA.y = 0.0f; YA.z = 0.0f;
+                        vec3 YB; YB.x = 0.0f; YB.y = 10.0f; YB.z = 0.0f;
+                        CurrentPlayer.YMove = PlayerMove(YA, YB, R, &CurrentPlayer.Interpolation);
                     }
                     else if(Input->State == Input_InMoved)
                     {
-                        //TODO(Andrew) Use the current side to side and up / down amt and add some forward to it.
-                        //Looking at this again, you're basically just making a vector that's oriented in a certain direction but slowly filling the "motions" of it across N frames.
-                        
+                        vec3 ZA; ZA.x = 0.0f; ZA.y = 0.0f; ZA.z = 0.0f;
+                        vec3 ZB; ZB.x = 0.0f; ZB.y = 0.0f; ZB.z = -10.0f;
+                        CurrentPlayer.ZMove = PlayerMove(ZA, ZB, R, &CurrentPlayer.Interpolation);
                     }
-                    PrintVector(vec3, &WorldIn, &PrintXLine, &PrintYLine, true);
+                    else if(Input->State == Input_Power)
+                    {
+                        Power = CurrentPlayer.Power.Amount;
+                        IncrementInterpolation(&CurrentPlayer.Power);
+                        PrintFloat(&CurrentPlayer.Power.Amount, &PrintXLine, &PrintYLine, true);
+                        PrintFloat(&Power, &PrintXLine, &PrintYLine, true);
+                    }
+                    vec3 Final = (CurrentPlayer.XMove + CurrentPlayer.YMove + CurrentPlayer.ZMove) * Power;
+                    CurrentPlayer.Transform.Translation = CurrentPlayer.PreviousTransform.Translation + Final;
+                    if(Input->State == Input_SideMoved || Input->State == Input_UpMoved || Input->State == Input_InMoved)
+                    {
+                        PrintFloat(&CurrentPlayer.Interpolation.Amount, &PrintXLine, &PrintYLine, true);
+                        PrintVector(vec3, &CurrentPlayer.Transform.Translation, &PrintXLine, &PrintYLine, true);
+                    }
+                    
                 }
             }
         }//Input End
@@ -505,12 +534,13 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             ti++)
         {
             temple_platform_instance* Current = &TemplePlatform.Instance[ti];
-            PrintFloat(&Current->Timer, &PrintXLine, &PrintYLine, true);
+#if 0
+            PrintFloat(&Current->Interpolation.Amount, &PrintXLine, &PrintYLine, true);
+#endif
             
-            TargetTransformInterpolated[ti] = lerp_vec3(Current->Target[0], Current->Target[1], Current->Timer);
+            TargetTransformInterpolated[ti] = lerp_vec3(Current->Target[0], Current->Target[1], Current->Interpolation.Amount);
             
             bool32 CollisionOccured = false;
-            PrintVector(vec3, P, &PrintXLine, &PrintYLine, true);
             
             mat3x3 Rotation = RotationMatrix(Current->RotationAxes);
             for(bit32 o = 0;
@@ -522,9 +552,11 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
                 bool32 IsMiddle = o == 2;
                 bool32 Check = false;
                 vec3 VectorResult = PointIsInsideOBB((*P), OBB, &Check);
+#if 0
                 PrintInteger(&IsMiddle, &PrintXLine, &PrintYLine, false);
                 PrintInteger(&Check, &PrintXLine, &PrintYLine, false);
                 PrintVector(vec3, &VectorResult, &PrintXLine, &PrintYLine, true);
+#endif
                 if(Check)
                 {
                     if(IsMiddle)
@@ -542,11 +574,13 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             if(CollisionOccured)
             {
                 bit32 Success = 1337;
+#if 0
                 PrintInteger(&Success, &PrintXLine, &PrintYLine, true);
+#endif
             }
             else
             {
-                TemplePlatformIncrementTimer(Current, Current->Increment);
+                IncrementInterpolation(&Current->Interpolation);
                 
             }
         }

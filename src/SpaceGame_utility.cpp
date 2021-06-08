@@ -13,6 +13,34 @@
 //instead of 64 bits and thus, will produce an incorrect result since you can (and on startup currently do as of 1/26/21) send a 64 bit integer, without checking for integral promotion,
 //introduces a chance for the alignpow2 to have bugs that are dependant on if the compiler does a good job or not!!! So the HMH version fixes that.
 
+struct interpolation_data
+{
+    f32 Increment;
+    f32 Max;
+    f32 Amount;
+    bool32 Rewind;
+};
+
+inline void IncrementInterpolation(interpolation_data* Interpolation)
+{
+    f32 Increment = Interpolation->Increment;
+    f32 Max = Interpolation->Max;
+    f32* Data = &Interpolation->Amount;
+    if(Interpolation->Rewind)
+    { *Data -= Increment; }
+    else { *Data += Increment; }
+    if((*Data) > Max)
+    {
+        (*Data) = Max;
+        Interpolation->Rewind = true;
+    }
+    else if((*Data) < 0.0f)
+    {
+        (*Data) = 0.0f;
+        Interpolation->Rewind = false;
+    }
+}
+
 f32 superslowf32_aprx_sqrt(f32 number) //TODO(Andrew): maybe get a large speedup from writing this in assembly?
 {
     f32 value = number;
