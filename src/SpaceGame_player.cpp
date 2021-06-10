@@ -13,6 +13,7 @@ struct game_player
     vec3 XMove; //NOTE: These are just conceptually the X Y and Z axis move amounts when the player is moving. Just storing each component separately for ease of overwriting.
     vec3 YMove;
     vec3 ZMove;
+    bit32 Score;
 };
 
 vec3 PlayerMove(vec3 A, vec3 B, mat3x3 R, interpolation_data* Interpolation)

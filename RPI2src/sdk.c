@@ -108,3 +108,21 @@ void* memcpy(void* dest, const void* src, size_t count)
         *Dest++ = *Src++;
     }
 }
+
+size_t strlen(const char* String)
+{
+    size_t Result = 0;
+    for(;String[Result] != 0;
+        Result++)
+    {}
+    return Result;
+}
+
+bit32 StringCopy(char* Dest, char* Src, bit32 LargestDesirableCopySize) //NOTE: I don't support the standard C lib way of string copy because I like to return the size copied. Also like capping the size of copy.
+{
+    bit32 c = 0;
+    for(; c < LargestDesirableCopySize && Src[c] != 0; c++)
+    { Dest[c] = Src[c]; }
+    Dest[c] = 0; c++;
+    return c;
+}

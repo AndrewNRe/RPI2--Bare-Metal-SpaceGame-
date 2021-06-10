@@ -1,24 +1,10 @@
-A: Change the code to follow my current code style.
--Change all structs to be lowercase
--Change all function names to be uppercase.
--Reduce code duplication.
--Get rid of all globals except maybe memory dependent on what you want to do there. It's in the game code layer, so the way you do memory will be the same on all 
-platforms in this case. As such, I think doing something more robust, or requiring that you have a memory structure per allocation would be best.
-
-Before B: Should look into the weird Z bug, surely just something with the Z division and my misunderstanding of something related to that and what not.
-
-B: "multithread" the software renderer.
+Optional:
+A: "multithread" the software renderer.
 -Need to ensure that I can use the other 3 cores.
 -Need a way to break the framebuffer up into chunks.
 -What are the boundary lines for how large a chunk can be? I don't want one thread to write to the framebuffer and cause some cpu cache flush or what not.
 -Is the previous statement relevant? Absolutely need to read on this.
 -Need to get some queue to issue out work to all the threads. Thinking that a lot of rework on the engine will be done to make this happen!
 
-F: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
+B: Should go and reduce register count on render letters. I was just simply tired and lazy the day I originally wrote it and don't have time today (4/12/21)!
 Also, should make it so the render routine stores a buffer and just pushes all render letters in a render letter pass to draw on top of everything in the game!
-
-G: Through gameplay iteration, decide how the collision if against OBB that's not valid should be handled. I'm not quite sure what I want yet, as the simple 
-"just push away" style makes the most sense. Still not sure how I want the player to move around quite yet though, so i'll have to decide later!
-
-6/6/21-
-Make it so the game has gravity and the player does collision that seems cool and what not.

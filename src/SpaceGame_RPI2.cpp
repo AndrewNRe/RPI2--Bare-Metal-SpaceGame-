@@ -82,6 +82,12 @@ enum rpi2_print_type
 {
     RPI2_Print_Float,
     RPI2_Print_Integer,
+    RPI2_Print_String,
+};
+struct render_string_array
+{
+    char String[2048];
+    bit32 c;
 };
 
 #define PrintIncrementY(PrintXLine, PrintYLine, Condition) PrintIncrementY_((PrintXLine), (PrintYLine), (Condition))
@@ -94,10 +100,11 @@ inline internal void PrintIncrementY_(bit32* PrintXLine, bit32* PrintYLine, bool
     }
 }
 
-#define PrintFloat(Data, PrintXLine, PrintYLine, DoIncrementY) RPI2_Print((Data), 1, (PrintXLine), (PrintYLine), RPI2_Print_Float, (DoIncrementY))
-#define PrintVector(type, Data, PrintXLine, PrintYLine, DoIncrementY) RPI2_Print((Data), sizeof(type)/sizeof(f32), (PrintXLine), (PrintYLine), RPI2_Print_Float, (DoIncrementY))
-#define PrintInteger(Data, PrintXLine, PrintYLine, DoIncrementY) RPI2_Print((Data), 1, (PrintXLine), (PrintYLine), RPI2_Print_Integer, (DoIncrementY))
-internal bit32 RPI2_Print(void* Data, bit32 Count, bit32* PrintXLine, bit32* PrintYLine, rpi2_print_type Type, bool32 DoIncrementY)
+#define PrintFloat(RenderStringArray, Data, DoIncrementY) RPI2_Print((RenderStringArray), (Data), 1, RPI2_Print_Float, (DoIncrementY))
+#define PrintVector(RenderStringArray, type, Data, DoIncrementY) RPI2_Print((RenderStringArray), (Data), sizeof(type)/sizeof(f32), RPI2_Print_Float, (DoIncrementY))
+#define PrintInteger(RenderStringArray, Data, DoIncrementY) RPI2_Print((RenderStringArray), (Data), 1, RPI2_Print_Integer, (DoIncrementY))
+#define PrintString(RenderStringArray, String, DoIncrementY) RPI2_Print((RenderStringArray), (String), 1, RPI2_Print_String, (DoIncrementY))
+internal bit32 RPI2_Print(render_string_array* RenderStringArray, void* Data, bit32 Count, rpi2_print_type Type, bool32 DoIncrementY)
 {
     bit32 Result = 0;
     char String[64];
@@ -116,11 +123,16 @@ internal bit32 RPI2_Print(void* Data, bit32 Count, bit32* PrintXLine, bit32* Pri
                 bit32* Integer = (bit32*)Data;
                 Result += IntegerToAscii(String, Integer[c]);
             }break;
+            case RPI2_Print_String:
+            {
+                Result = StringCopy(String, (char*)Data, sizeof(String));
+            }break;
         }
-        RenderLetterArray(String, PrintXLine, PrintYLine);
-        PrintIncrementY(PrintXLine, PrintYLine, (*PrintXLine) >= SCREEN_X - 1);
+        
+        RenderStringArray->c += StringCopy(&RenderStringArray->String[RenderStringArray->c], String, Result);
     }
-    PrintIncrementY(PrintXLine, PrintYLine, DoIncrementY);
+    if(DoIncrementY)
+    { RenderStringArray->String[RenderStringArray->c] = '\n'; RenderStringArray->c++; }
     return Result;
 }
 
@@ -142,7 +154,8 @@ void WindTriangle(triangle* Triangle, bit32* CurrentTriangle,  vertex* VertexArr
 }
 
 inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatform, vec3* TargetTransformInterpolated,
-                            memory_block* Block, camera* Camera, bit32* PrintXLine, bit32* PrintYLine)
+                            memory_block* Block, camera* Camera, 
+                            render_string_array* StringRenderArray, bit32* PrintXLine, bit32* PrintYLine)
 {
     f32 BottomClipPlane = -SCREEN_Y; f32 TopClipPlane = SCREEN_Y;
     f32 LeftClipPlane = -SCREEN_X; f32 RightClipPlane = SCREEN_X;
@@ -348,6 +361,19 @@ inline void Platform_Render(bit32 BackBufferColor, temple_platform* TemplePlatfo
 #endif
     }
     
+    {//Render the string(s)
+        for(bit32 c = 0;
+            c < StringRenderArray->c;)
+        {
+            char String[64];
+            c += StringCopy(String, &StringRenderArray->String[c], sizeof(String));
+            RenderLetterArray(String, PrintXLine, PrintYLine);
+            PrintIncrementY(PrintXLine, PrintYLine, (*PrintXLine) >= SCREEN_X - 1);
+            if(StringRenderArray->String[c] == '\n')
+            { PrintIncrementY(PrintXLine, PrintYLine, true); }
+        }
+    }
+    
     SoftwareFrameBufferSwap(BackBufferColor);
 }
 
@@ -383,8 +409,25 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         TemporaryBlock = PushNewBlock(&MainBlock,  Kilobytes(30), MemoryFlag_Pow2Align);
     }//End of setting up the game's memory
     
-    temple_platform TemplePlatform = {};
+    game_player CurrentPlayer;
+    CurrentPlayer.Transform.Translation.x = 0.0f;
+    CurrentPlayer.Transform.Translation.y = 10.0f;
+    CurrentPlayer.Transform.Translation.z = 65.0f;
+    CurrentPlayer.Transform.RotationAxes = {0.0f, 0.0f, 0.0f};
     
+    CurrentPlayer.Interpolation.Increment = 0.01f;
+    CurrentPlayer.Interpolation.Max = 1.0f;
+    CurrentPlayer.Interpolation.Amount = 0.0f;
+    CurrentPlayer.Interpolation.Rewind = false;
+    
+    CurrentPlayer.Power.Increment = 1.0f;
+    CurrentPlayer.Power.Max = 20.0f;
+    CurrentPlayer.Power.Amount = 0.0f;
+    CurrentPlayer.Power.Rewind = false;
+    
+    CurrentPlayer.Score = 0;
+    
+    temple_platform TemplePlatform = {};
     //TODO(Andrew) To keep this code platform ignorant, move this code out into a SetupTemplePlatforms() function or macro.
     {//Start of setting up the temple platform instances
         bit32 MaxPlatforms = 2;
@@ -394,13 +437,13 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
         //assembly!!!
         {
             vec3 A = {};
-            A.x = -30.0f;
-            A.y = -10.0f;
-            A.z = 10.0f;
+            A.x = CurrentPlayer.Transform.Translation.x;
+            A.y = CurrentPlayer.Transform.Translation.y - 11.0f;
+            A.z = CurrentPlayer.Transform.Translation.z;
             vec3 B = {};
-            B.x = 30.0f;
-            B.y = 10.0f;
-            B.z = 10.0f;
+            B.x = -30.0f;
+            B.y = -10.0f;
+            B.z = -10.0f;
             TemplePlatform.Instance[p] = GenerateTemplePlatformInstance(0.0f, 0.01f, {0.0f, 0.0f, 0.0f}, A, B); p++;
         }
         {
@@ -418,29 +461,18 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
     }//End of setting up the temple platform instances
     
     camera Camera = {};
-    game_player CurrentPlayer;
-    CurrentPlayer.Transform.Translation.x = 0.0f;
-    CurrentPlayer.Transform.Translation.y = 10.0f;
-    CurrentPlayer.Transform.Translation.z = 65.0f;
-    CurrentPlayer.Transform.RotationAxes = {0.0f, 0.0f, 0.0f};
-    
-    CurrentPlayer.Interpolation.Increment = 0.01f;
-    CurrentPlayer.Interpolation.Max = 1.0f;
-    CurrentPlayer.Interpolation.Amount = 0.0f;
-    CurrentPlayer.Interpolation.Rewind = false;
-    
-    CurrentPlayer.Power.Increment = 1.0f;
-    CurrentPlayer.Power.Max = 20.0f;
-    CurrentPlayer.Power.Amount = 0.0f;
-    CurrentPlayer.Power.Rewind = false;
     
     game_input* Input = PushStruct(&MainBlock, game_input, MemoryFlag_ClearToZero | MemoryFlag_Pow2Align);
     
+    f32 Gravity = 0.1f;
+    
     for(;;)
-    {
+    {//NOTE: If you want any of this code to actually be platform independent, you should make a main func that the rpi or whatever platform will call! It's still fundamentally the same as what's here, you'd just pass all the data that's used here to that function (make sure to pass the actual memory address of things like the player and such tho! So the new main will use pointers everywhere, basically.)
         bit32 PrintXLine = MONOSPACED_TEXT_X_START; bit32 PrintYLine = MONOSPACED_TEXT_Y_START;
         
         memory_block TemporaryStack = PushNewBlock(&TemporaryBlock, Kilobytes(29));
+        
+        render_string_array* StringRenderArray = PushStruct(&TemporaryStack, render_string_array, MemoryFlag_ClearToZero | MemoryFlag_NoAlign);
         
         vec3 PP = CurrentPlayer.Transform.Translation;
         vec3* P = &CurrentPlayer.Transform.Translation;
@@ -450,8 +482,6 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             if(SnesButtonDown)
             { Input->ButtonDown++; }
             else { Input->ButtonDown = 0; }
-            
-            PrintInteger(&Input->ButtonDown, &PrintXLine, &PrintYLine, true);
             
             if(Input->ButtonDown == 1)
             {
@@ -484,7 +514,21 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
                     f32* YTheta = &CurrentPlayer.Transform.RotationAxes.y;
                     (*YTheta) += Increment;
                     if((*YTheta) > PI32*2){ (*YTheta) = 0.0f; }
-                    PrintFloat(YTheta, &PrintXLine, &PrintYLine, true);
+                    {
+                        char RotationString[10];
+                        bit32 s = 0;
+                        RotationString[s] = 'R'; s++;
+                        RotationString[s] = 'O'; s++;
+                        RotationString[s] = 'T'; s++;
+                        RotationString[s] = 'R'; s++;
+                        RotationString[s] = 'A'; s++;
+                        RotationString[s] = 'D'; s++;
+                        RotationString[s] = ':'; s++;
+                        RotationString[s] = ' '; s++;
+                        RotationString[s] = 0; s++;
+                        PrintString(StringRenderArray, RotationString, false);
+                        PrintFloat(StringRenderArray, YTheta, true);
+                    }
                 }
                 else
                 {
@@ -495,32 +539,111 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
                         vec3 XA; XA.x = -10.0f; XA.y = 0.0f; XA.z = 0.0f;
                         vec3 XB; XB.x = 10.0f; XB.y = 0.0f; XB.z = 0.0f;
                         CurrentPlayer.XMove = PlayerMove(XA, XB, R, &CurrentPlayer.Interpolation);
+                        {
+                            char String[2];
+                            bit32 s = 0;
+                            String[s] = 'X'; s++;
+                            String[s] = 0; s++;
+                            PrintString(StringRenderArray, String, true);
+                        }
                     }
                     else if(Input->State == Input_UpMoved)
                     {
                         vec3 YA; YA.x = 0.0f; YA.y = 0.0f; YA.z = 0.0f;
                         vec3 YB; YB.x = 0.0f; YB.y = 10.0f; YB.z = 0.0f;
                         CurrentPlayer.YMove = PlayerMove(YA, YB, R, &CurrentPlayer.Interpolation);
+                        {
+                            char String[2];
+                            bit32 s = 0;
+                            String[s] = 'Y'; s++;
+                            String[s] = 0; s++;
+                            PrintString(StringRenderArray, String, true);
+                        }
                     }
                     else if(Input->State == Input_InMoved)
                     {
                         vec3 ZA; ZA.x = 0.0f; ZA.y = 0.0f; ZA.z = 0.0f;
                         vec3 ZB; ZB.x = 0.0f; ZB.y = 0.0f; ZB.z = -10.0f;
                         CurrentPlayer.ZMove = PlayerMove(ZA, ZB, R, &CurrentPlayer.Interpolation);
+                        {
+                            char String[2];
+                            bit32 s = 0;
+                            String[s] = 'Z'; s++;
+                            String[s] = 0; s++;
+                            PrintString(StringRenderArray, String, true);
+                        }
                     }
                     else if(Input->State == Input_Power)
                     {
                         Power = CurrentPlayer.Power.Amount;
                         IncrementInterpolation(&CurrentPlayer.Power);
-                        PrintFloat(&CurrentPlayer.Power.Amount, &PrintXLine, &PrintYLine, true);
-                        PrintFloat(&Power, &PrintXLine, &PrintYLine, true);
+                        {
+                            bit32 s = 0;
+                            char PowerAmount[10];
+                            PowerAmount[s] = 'P'; s++;
+                            PowerAmount[s] = 'O'; s++;
+                            PowerAmount[s] = 'W'; s++;
+                            PowerAmount[s] = 'A'; s++;
+                            PowerAmount[s] = 'M'; s++;
+                            PowerAmount[s] = 'T'; s++;
+                            PowerAmount[s] = ':'; s++;
+                            PowerAmount[s] = ' '; s++;
+                            PowerAmount[s] = 0; s++;
+                            PrintString(StringRenderArray, PowerAmount, false);
+                            PrintFloat(StringRenderArray, &CurrentPlayer.Power.Amount, true);
+                        }
+                        {
+                            bit32 s = 0;
+                            char PowerString[10];
+                            PowerString[s] = 'P'; s++;
+                            PowerString[s] = 'O'; s++;
+                            PowerString[s] = 'W'; s++;
+                            PowerString[s] = 'V'; s++;
+                            PowerString[s] = 'A'; s++;
+                            PowerString[s] = 'L'; s++;
+                            PowerString[s] = ':'; s++;
+                            PowerString[s] = ' '; s++;
+                            PowerString[s] = 0; s++;
+                            PrintString(StringRenderArray, PowerString, false);
+                            PrintFloat(StringRenderArray, &Power, true);
+                        }
                     }
                     vec3 Final = (CurrentPlayer.XMove + CurrentPlayer.YMove + CurrentPlayer.ZMove) * Power;
                     CurrentPlayer.Transform.Translation = CurrentPlayer.PreviousTransform.Translation + Final;
                     if(Input->State == Input_SideMoved || Input->State == Input_UpMoved || Input->State == Input_InMoved)
                     {
-                        PrintFloat(&CurrentPlayer.Interpolation.Amount, &PrintXLine, &PrintYLine, true);
-                        PrintVector(vec3, &CurrentPlayer.Transform.Translation, &PrintXLine, &PrintYLine, true);
+                        {
+                            bit32 s = 0;
+                            char InterpolationString[11];
+                            InterpolationString[s] = 'I'; s++;
+                            InterpolationString[s] = 'N'; s++;
+                            InterpolationString[s] = 'T'; s++;
+                            InterpolationString[s] = 'E'; s++;
+                            InterpolationString[s] = 'P'; s++;
+                            InterpolationString[s] = 'O'; s++;
+                            InterpolationString[s] = 'L'; s++;
+                            InterpolationString[s] = ':'; s++;
+                            InterpolationString[s] = ' '; s++;
+                            InterpolationString[s] = 0; s++;
+                            PrintString(StringRenderArray, InterpolationString, false);
+                            PrintFloat(StringRenderArray, &CurrentPlayer.Interpolation.Amount, true);
+                        }
+                        {
+                            bit32 s = 0;
+                            char TranslationString[11];
+                            TranslationString[s] = 'T'; s++;
+                            TranslationString[s] = 'R'; s++;
+                            TranslationString[s] = 'N'; s++;
+                            TranslationString[s] = 'S'; s++;
+                            TranslationString[s] = 'L'; s++;
+                            TranslationString[s] = 'A'; s++;
+                            TranslationString[s] = 'T'; s++;
+                            TranslationString[s] = ':'; s++;
+                            TranslationString[s] = ' '; s++;
+                            TranslationString[s] = 0; s++;
+                            PrintString(StringRenderArray, TranslationString, false);
+                            PrintVector(StringRenderArray, vec3, &CurrentPlayer.Transform.Translation, true);
+                        }
                     }
                     
                 }
@@ -534,9 +657,6 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             ti++)
         {
             temple_platform_instance* Current = &TemplePlatform.Instance[ti];
-#if 0
-            PrintFloat(&Current->Interpolation.Amount, &PrintXLine, &PrintYLine, true);
-#endif
             
             TargetTransformInterpolated[ti] = lerp_vec3(Current->Target[0], Current->Target[1], Current->Interpolation.Amount);
             
@@ -552,11 +672,6 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
                 bool32 IsMiddle = o == 2;
                 bool32 Check = false;
                 vec3 VectorResult = PointIsInsideOBB((*P), OBB, &Check);
-#if 0
-                PrintInteger(&IsMiddle, &PrintXLine, &PrintYLine, false);
-                PrintInteger(&Check, &PrintXLine, &PrintYLine, false);
-                PrintVector(vec3, &VectorResult, &PrintXLine, &PrintYLine, true);
-#endif
                 if(Check)
                 {
                     if(IsMiddle)
@@ -573,23 +688,44 @@ extern "C" void RPI2_main() //NOTE: "Entry Point"
             
             if(CollisionOccured)
             {
-                bit32 Success = 1337;
-#if 0
-                PrintInteger(&Success, &PrintXLine, &PrintYLine, true);
-#endif
+                if(!Current->ScoreRecentlyUpdated)
+                {
+                    CurrentPlayer.Score++;
+                }
+                Current->ScoreRecentlyUpdated = true;
+                //TODO(Andrew) THIS IS A HACK! IF YOU ADD MORE THAN 2 PLATFORMS, YOU MUSTN'T DO THIS ANYMORE AND INSTEAD, ADD SOME STATE THAT CHECKS FOR IF YOU'RE ON JUST ONE PLATFORM!
+                CurrentPlayer.Transform.Translation.y += Gravity;
+                CurrentPlayer.PreviousTransform.Translation.y += Gravity;
             }
             else
             {
+                Current->ScoreRecentlyUpdated = false;
                 IncrementInterpolation(&Current->Interpolation);
-                
+                CurrentPlayer.Transform.Translation.y -= Gravity;
+                CurrentPlayer.PreviousTransform.Translation.y -= Gravity;
             }
+        }
+        
+        {//Score print
+            char ScoreString[8];
+            bit32 s = 0;
+            ScoreString[s] = 'S'; s++;
+            ScoreString[s] = 'c'; s++;
+            ScoreString[s] = 'o'; s++;
+            ScoreString[s] = 'r'; s++;
+            ScoreString[s] = 'e'; s++;
+            ScoreString[s] = ':'; s++;
+            ScoreString[s] = ' '; s++;
+            ScoreString[s] = 0; s++;
+            PrintString(StringRenderArray, ScoreString, false);
+            PrintInteger(StringRenderArray, &CurrentPlayer.Score, true);
         }
         
         Camera.OrbitPosition = CurrentPlayer.Transform.Translation;
         Camera.RotatePair.x = CurrentPlayer.Transform.RotationAxes.y;
         Camera.RotatePair.y = CurrentPlayer.Transform.RotationAxes.x;
         
-        Platform_Render(0xFF000000, &TemplePlatform, TargetTransformInterpolated, &TemporaryStack, &Camera, &PrintXLine, &PrintYLine);
+        Platform_Render(0xFF000000, &TemplePlatform, TargetTransformInterpolated, &TemporaryStack, &Camera, StringRenderArray, &PrintXLine, &PrintYLine);
         
         DeleteBlock(&TemporaryBlock, &TemporaryStack);
     }

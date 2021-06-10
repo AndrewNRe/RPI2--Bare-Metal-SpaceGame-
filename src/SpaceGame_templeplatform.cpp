@@ -1,6 +1,7 @@
 #define TEMPLE_PLATFORM_MAX_TARGET_POSITION_COUNT 2 //NOTE: Must always be greater than 2!!!!
 struct temple_platform_instance
 {
+    bool32 ScoreRecentlyUpdated;
     vec3 RotationAxes;
     vec3 Target[TEMPLE_PLATFORM_MAX_TARGET_POSITION_COUNT];
     oriented_bounding_box OBB[3];
@@ -22,6 +23,7 @@ inline temple_platform_instance GenerateTemplePlatformInstance(f32 StartTime, f3
     Result.Interpolation.Max = 1.0f;
     Result.Interpolation.Amount = StartTime;
     Result.Interpolation.Rewind = false;
+    Result.ScoreRecentlyUpdated = false;
     bit32 t = 0;
     Result.Target[0] = tA; t++;
     Result.Target[1] = tB; t++;
